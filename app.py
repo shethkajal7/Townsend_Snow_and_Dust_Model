@@ -6,13 +6,6 @@ import streamlit as st
 st.set_page_config(page_title="Solar Snow and Dust Loss Calculator (Townsend Model)", page_icon="❄️", layout="wide")
 
 st.title("Solar Snow and Dust Loss Calculator (Townsend Model)")
-# --- Subtitle (combined) ---
-st.markdown(
-    "_Townsend snow loss (via pvlib) + precipitation-aware soiling model using monthly "
-    "climate inputs (manual-clean option); month-by-month results to support EPC yield "
-    "estimates and O&M cleaning plans._"
-
-)
 # --- Hero image (half size) just below the title ---
 from pathlib import Path
 try:
@@ -28,7 +21,13 @@ if img_path is not None:
         st.image(im, width=max(300, im.width // 2))  # half width with a sensible minimum
     else:
         st.image(str(img_path), width=600)  # fallback width
+        # --- Subtitle (combined) ---
+st.markdown(
+    "_Townsend snow loss (via pvlib) + precipitation-aware soiling model using monthly "
+    "climate inputs (manual-clean option); month-by-month results to support EPC yield "
+    "estimates and O&M cleaning plans._"
 
+)
 # --- Transition text ---
 st.markdown(
     "Flat “2% soiling” assumptions hide seasonal risk and can distort both EPC yield models "
