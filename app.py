@@ -22,21 +22,7 @@ if img_path is not None:
     else:
         st.image(str(img_path), width=600)  # fallback width
         # --- Subtitle (combined) ---
-st.markdown(
-    "_Townsend snow loss (via pvlib) + precipitation-aware soiling model using monthly "
-    "climate inputs (manual-clean option); month-by-month results to support EPC yield "
-    "estimates and O&M cleaning plans._"
 
-)
-# --- Transition text ---
-st.markdown(
-    "Flat “2% soiling” assumptions hide seasonal risk and can distort both EPC yield models "
-    "and O&M decisions. Soiling is dynamic and seasonal; losses during high-irradiance months "
-    "hit hardest, and the right cleaning cadence balances cost against energy recovery. Use the "
-    "tool below to convert those principles into numbers: it applies pvlib’s Townsend snow model and "
-    "a simple precipitation-aware soiling progression (with a manual-clean toggle) to produce stacked "
-    "monthly loss percentages one can use in EPC financials and O&M planning."
-)
 with st.sidebar:
 
     st.header("📘How to use this webpage")
