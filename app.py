@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
+
+st.set_page_config(page_title="Solar Snow and Dust Loss Calculator (Townsend Model)", page_icon="❄️", layout="wide")
+
+st.title("Solar Snow and Dust Loss Calculator (Townsend Model)")
 # --- Subtitle (combined) ---
 st.markdown(
     "_Townsend snow loss (via pvlib) + precipitation-aware soiling model using monthly "
@@ -9,10 +13,6 @@ st.markdown(
     "estimates and O&M cleaning plans._"
 
 )
-st.set_page_config(page_title="Solar Snow and Dust Loss Calculator (Townsend Model)", page_icon="❄️", layout="wide")
-
-st.title("Solar Snow and Dust Loss Calculator (Townsend Model)")
-
 # --- Hero image (half size) just below the title ---
 from pathlib import Path
 try:
