@@ -72,11 +72,6 @@ from soiling_models import (
 st.set_page_config(page_title="Townsend Snow + Dust Model", layout="wide")
 st.title("Townsend Snow + Dust Model")
 
-st.caption(
-    "This webpage reproduces the spreadsheet logic. "
-    "Internal calculations use full precision. Displayed losses are rounded to 1 decimal."
-)
-
 with st.sidebar:
     st.header("Snow system inputs")
 
