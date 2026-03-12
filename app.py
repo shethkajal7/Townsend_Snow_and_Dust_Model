@@ -2,7 +2,29 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
+with st.sidebar:
 
+    st.header("How to use this webpage")
+
+    st.markdown("""
+    1. Enter **snow system inputs** such as tilt, row length, drop height, and module type.
+
+    2. Select **monthly data availability** such as snowfall events and humidity.
+
+    3. Enable **optional inputs** only if you have that data.
+
+    4. Enter **dust inputs** including ramp rate category and number of washes.
+
+    5. Fill the **monthly table** for all 12 months.
+
+    6. Click **Run model** to calculate snow loss, dust loss, and combined loss.
+
+    7. Review the **outputs, plots, and CSV download** below.
+    """)
+
+    st.divider()
+
+    st.header("Snow system inputs")
 from soiling_models import (
     MONTHS,
     SnowSystemInputs,
