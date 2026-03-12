@@ -39,7 +39,7 @@ st.markdown(
 )
 with st.sidebar:
 
-    st.header("How to use this webpage")
+    st.header("📘How to use this webpage")
 
     st.markdown("""
     1. Enter **snow system inputs** such as tilt, row length, drop height, and module type.
