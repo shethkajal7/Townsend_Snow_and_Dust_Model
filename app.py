@@ -9,6 +9,25 @@ st.markdown(
     "estimates and O&M cleaning plans._"
 
 )
+st.set_page_config(page_title="Solar Snow and Dust Loss Calculator (Townsend Model)", page_icon="❄️", layout="wide")
+
+st.title("Solar Snow and Dust Loss Calculator (Townsend Model)")
+
+# --- Hero image (half size) just below the title ---
+from pathlib import Path
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
+img_candidates = [Path("image_snow_loss.png"), Path("/mnt/data/image_snow_loss.png")]
+img_path = next((p for p in img_candidates if p.exists()), None)
+if img_path is not None:
+    if Image is not None:
+        im = Image.open(img_path)
+        st.image(im, width=max(300, im.width // 2))  # half width with a sensible minimum
+    else:
+        st.image(str(img_path), width=600)  # fallback width
 
 # --- Transition text ---
 st.markdown(
