@@ -328,6 +328,11 @@ if run:
         mime="text/csv",
         use_container_width=True,
     )
+    st.markdown("### Related Tool")
+st.markdown(
+    "Reference non-bifacial calculator: "
+    "[PV Snow & Soiling Loss Calculator](https://pv-snow-soiling-losses.streamlit.app/)"
+)
 st.markdown("### References")
 
 st.markdown("""
