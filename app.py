@@ -33,23 +33,6 @@ st.markdown("""
 Welcome to the first website where one can directly estimate the monthly photovoltaic (PV) generation lost due to snow using Townsend’s method. Snow on PV will significantly reduce its output, but by how much? This tool calculates that amount. The main influences are the quantity of snow and the tilt angle of the PV array. The calculation also relies on a few additional weather and system geometry inputs, please just follow the guidance on the left side of the page. Townsend’s snow loss equations were developed based on two winters of field measurements done near Lake Tahoe, California from 2009 to 2011. The equation and the losses measured for several tilt angles were published in 2011 at the 37th IEEE Photovoltaic Specialists Conference in Seattle, Washington.
 """)
 
-def show_pdf(pdf_path: str):
-    pdf_file = Path(pdf_path)
-    if not pdf_file.exists():
-        st.warning("Dust model theory PDF was not found.")
-        return
-
-    with open(pdf_file, "rb") as f:
-        pdf_bytes = f.read()
-
-    st.download_button(
-        label="Download Dust Model Theory PDF",
-        data=pdf_bytes,
-        file_name=pdf_file.name,
-        mime="application/pdf",
-    )
-
-    st.info("Use the download button to open the Dust Model Theory PDF in your browser or PDF reader.")
 
 # Hero image
 img_candidates = [Path("image_snow_loss.png"), Path("/mnt/data/image_snow_loss.png")]
@@ -371,7 +354,7 @@ if run:
     )
     st.markdown("### Related Tool")
 
-st.markdown("## Dust Model Theory PDF")
+st.markdown("## Dust Model Theory Documentation")
 
 pdf_candidates = [
     Path("DustModelTheory.pdf"),
@@ -381,8 +364,7 @@ pdf_candidates = [
 pdf_path = next((p for p in pdf_candidates if p.exists()), None)
 
 if pdf_path is not None:
-    st.caption("View or download the dust model theory document below.")
-    show_pdf(str(pdf_path))
+    st.caption("Use the download button to open the Dust Model Theory PDF in your browser or PDF reader.")
 else:
     st.warning("Dust model theory PDF is not available in the app folder.")
 
