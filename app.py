@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-import base64
+
 
 try:
     from PIL import Image
@@ -352,7 +352,7 @@ if run:
         mime="text/csv",
         use_container_width=True,
     )
-    st.markdown("### Related Tool")
+    
 
 st.markdown("## Dust Model Theory Documentation")
 
@@ -365,9 +365,20 @@ pdf_path = next((p for p in pdf_candidates if p.exists()), None)
 
 if pdf_path is not None:
     st.caption("Use the download button to open the Dust Model Theory PDF in your browser or PDF reader.")
+
+    with open(pdf_path, "rb") as f:
+        pdf_bytes = f.read()
+
+    st.download_button(
+        label="Download Dust Model Theory PDF",
+        data=pdf_bytes,
+        file_name=pdf_path.name,
+        mime="application/pdf",
+    )
 else:
     st.warning("Dust model theory PDF is not available in the app folder.")
-
+    
+st.markdown("### Related Tool")
 st.markdown(
     "Reference non-bifacial calculator: "
     "[PV Snow & Soiling Loss Calculator](https://pv-snow-soiling-losses.streamlit.app/)"
