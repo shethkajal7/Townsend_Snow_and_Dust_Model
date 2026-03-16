@@ -33,7 +33,7 @@ st.markdown("""
 Welcome to the first website where one can directly estimate the monthly photovoltaic (PV) generation lost due to snow using Townsend’s method. Snow on PV will significantly reduce its output, but by how much? This tool calculates that amount. The main influences are the quantity of snow and the tilt angle of the PV array. The calculation also relies on a few additional weather and system geometry inputs, please just follow the guidance on the left side of the page. Townsend’s snow loss equations were developed based on two winters of field measurements done near Lake Tahoe, California from 2009 to 2011. The equation and the losses measured for several tilt angles were published in 2011 at the 37th IEEE Photovoltaic Specialists Conference in Seattle, Washington.
 """)
 
-def show_pdf(pdf_path: str, height: int = 700):
+def show_pdf(pdf_path: str):
     pdf_file = Path(pdf_path)
     if not pdf_file.exists():
         st.warning("Dust model theory PDF was not found.")
@@ -47,19 +47,9 @@ def show_pdf(pdf_path: str, height: int = 700):
         data=pdf_bytes,
         file_name=pdf_file.name,
         mime="application/pdf",
-        use_container_width=False,
     )
 
-    base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
-    pdf_display = f"""
-        <iframe
-            src="data:application/pdf;base64,{base64_pdf}"
-            width="100%"
-            height="{height}"
-            type="application/pdf">
-        </iframe>
-    """
-    st.markdown(pdf_display, unsafe_allow_html=True)
+    st.info("Chrome may block inline PDF display here. Please use the download button to open the file.")
 
 # Hero image
 img_candidates = [Path("image_snow_loss.png"), Path("/mnt/data/image_snow_loss.png")]
@@ -392,7 +382,7 @@ pdf_path = next((p for p in pdf_candidates if p.exists()), None)
 
 if pdf_path is not None:
     st.caption("View or download the dust model theory document below.")
-    show_pdf(str(pdf_path), height=800)
+    show_pdf(str(pdf_path))
 else:
     st.warning("Dust model theory PDF is not available in the app folder.")
 
