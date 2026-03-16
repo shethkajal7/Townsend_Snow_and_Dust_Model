@@ -49,7 +49,7 @@ def show_pdf(pdf_path: str):
         mime="application/pdf",
     )
 
-    st.info("Chrome may block inline PDF display here. Please use the download button to open the file.")
+    st.info("Use the download button to open the Dust Model Theory PDF in your browser or PDF reader.")
 
 # Hero image
 img_candidates = [Path("image_snow_loss.png"), Path("/mnt/data/image_snow_loss.png")]
