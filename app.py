@@ -383,7 +383,7 @@ pdf_candidates = [
 pdf_path = next((p for p in pdf_candidates if p.exists()), None)
 
 if pdf_path is not None:
-    st.caption("Use the download button to open the Dust Model Theory PDF in your browser or PDF reader.")
+    st.markdown("Use the download button to open the Dust Model Theory PDF in your browser or PDF reader.")
 
     with open(pdf_path, "rb") as f:
         pdf_bytes = f.read()
