@@ -352,7 +352,16 @@ if run:
         mime="text/csv",
         use_container_width=True,
     )
-    
+   st.divider()
+st.subheader("📄 Technical Documentation")
+
+st.markdown(
+    """
+Download the technical documentation for Townsend’s monthly snow loss model,
+including equations, ground-interference term, tracking guidance, bifacial guidance,
+and the string-factor discussion.
+"""
+) 
 pdf_path = Path(__file__).parent / "SnowModelTheory.pdf"
 
 if pdf_path.exists():
@@ -365,7 +374,6 @@ if pdf_path.exists():
         )
 else:
     st.warning("SnowModelTheory.pdf was not found in the deployed app folder.")
-st.markdown("## Dust Model Theory Documentation")
 
 pdf_candidates = [
     Path("DustModelTheory.pdf"),
