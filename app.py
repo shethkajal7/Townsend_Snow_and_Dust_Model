@@ -353,7 +353,18 @@ if run:
         use_container_width=True,
     )
     
+pdf_path = Path(__file__).parent / "SnowModelTheory.pdf"
 
+if pdf_path.exists():
+    with open(pdf_path, "rb") as f:
+        st.download_button(
+            label="Download Snow Model Theory (PDF)",
+            data=f,
+            file_name="SnowModelTheory.pdf",
+            mime="application/pdf"
+        )
+else:
+    st.warning("SnowModelTheory.pdf was not found in the deployed app folder.")
 st.markdown("## Dust Model Theory Documentation")
 
 pdf_candidates = [
