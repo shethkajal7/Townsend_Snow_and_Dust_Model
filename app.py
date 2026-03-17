@@ -352,7 +352,7 @@ if run:
         mime="text/csv",
         use_container_width=True,
     )
-   st.divider()
+st.divider()
 st.subheader("📄 Technical Documentation")
 
 st.markdown(
