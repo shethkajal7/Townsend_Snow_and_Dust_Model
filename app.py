@@ -383,13 +383,13 @@ pdf_candidates = [
 pdf_path = next((p for p in pdf_candidates if p.exists()), None)
 
 if pdf_path is not None:
-    st.markdown("Use the download button to open the Dust Model Theory PDF in your browser or PDF reader.")
+    st.markdown("Download the technical documentation for Townsend’s monthly dust loss model, including governing rules, precipitation response functions, seasonal ramp-rate formulation, wash optimization logic, bifacial adjustments, and annual consistency methodology.")
 
     with open(pdf_path, "rb") as f:
         pdf_bytes = f.read()
 
     st.download_button(
-        label="Download Dust Model Theory PDF",
+        label="Download Dust Model Theory (PDF)",
         data=pdf_bytes,
         file_name=pdf_path.name,
         mime="application/pdf",
