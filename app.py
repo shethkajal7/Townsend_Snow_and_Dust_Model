@@ -45,6 +45,16 @@ if img_path is not None:
     else:
         st.image(str(img_path), width=600)
 
+st.markdown("### Snow accumulation on a south-facing PV array at 53° tilt")
+
+caption_text = (
+    "Snow accumulation on a south-facing PV array in Nevada City, California, "
+    "February 2023. The array was set to a seasonally adjusted tilt of 53° at "
+    "the time. Photo by Carl Schori, used with permission."
+)
+
+st.image(im, use_container_width=True, caption=caption_text)
+
 # Remaining explanatory text below image
 st.markdown("""
 Prior to this webpage, users needed to create an Excel worksheet, obtain a courtesy worksheet from the author, or, since 2023, execute the model through a Python-based implementation that was added to the pvlib platform in 2023. Since its publication in 2011, the equation has been amended slightly to account for a broader amount of PV installation types. For example, bifacial PV is now a major commercial market. Compared to traditional monofacial PV, it will experience less snow loss, owing to its more absorptive and snow-free back side.This webpage allows the user to click a bifacial option. The resulting annual snow loss will typically decrease by a percent or so. The resulting annual snow loss will typically decrease by a percent or so. Two other features implemented here include guidance for modeling tracking PV, as well as an option to reduce the estimated snow loss by 25% in the instances where multiple paralleled dc source circuits exist in the upslope direction. For example, if modules are oriented in landscape, bypass diodes will gradually restore generation as slow slides down and uncovers the upper portions of a module.
