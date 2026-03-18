@@ -32,20 +32,9 @@ st.title("Solar Snow and Dust Loss Calculator (Townsend Model)")
 st.markdown("""
 Welcome to the first website where one can directly estimate the monthly photovoltaic (PV) generation lost due to snow using Townsend’s method. Snow on PV will significantly reduce its output, but by how much? This tool calculates that amount. The main influences are the quantity of snow and the tilt angle of the PV array. The calculation also relies on a few additional weather and system geometry inputs; please just follow the guidance on the left side of the page. Townsend’s snow loss equations were developed based on two winters of field measurements done near Lake Tahoe, California from 2009-11. The equation and the losses measured for several tilt angles were published in 2011 at the 37th IEEE PV Specialists Conference in Seattle, WA.
 """)
-
-
 # Hero image
 img_candidates = [Path("image_snow_loss.png"), Path("/mnt/data/image_snow_loss.png")]
 img_path = next((p for p in img_candidates if p.exists()), None)
-
-if img_path is not None:
-    if Image is not None:
-        im = Image.open(img_path)
-        st.image(im, width=max(300, im.width // 2))
-    else:
-        st.image(str(img_path), width=600)
-
-st.markdown("### Snow accumulation on a south-facing PV array at 53° tilt")
 
 caption_text = (
     "Snow accumulation on a south-facing PV array in Nevada City, California, "
@@ -53,7 +42,12 @@ caption_text = (
     "the time. Photo by Carl Schori, used with permission."
 )
 
-st.image(im, use_container_width=True, caption=caption_text)
+if img_path is not None:
+    if Image is not None:
+        im = Image.open(img_path)
+        st.image(im, use_container_width=True, caption=caption_text)
+    else:
+        st.image(str(img_path), use_container_width=True, caption=caption_text)
 
 # Remaining explanatory text below image
 st.markdown("""
