@@ -35,7 +35,7 @@ Welcome to the first website where one can directly estimate the monthly photovo
 
 
 # Hero image
-img_candidates = [Path("image_snow_loss.heic"), Path("/mnt/data/image_snow_loss.heic")]
+img_candidates = [Path("image_snow_loss.png"), Path("/mnt/data/image_snow_loss.png")]
 img_path = next((p for p in img_candidates if p.exists()), None)
 
 if img_path is not None:
