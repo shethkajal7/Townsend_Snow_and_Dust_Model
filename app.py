@@ -343,11 +343,21 @@ if run:
     )
     results_plot = results_plot.sort_values("Month")
 
-    st.line_chart(
-        results_plot.set_index("Month")[
-            ["Snow loss (%)", "Dust loss (%)", "Combined soiling loss (%)"]
-        ]
-    )
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()
+    
+    plot_data = results_plot.set_index("Month")[
+        ["Snow loss (%)", "Dust loss (%)", "Combined soiling loss (%)"]
+    ]
+
+    plot_data.plot(ax=ax)
+    
+    ax.set_ylabel("Loss (%)")   # ✅ Y-axis label added
+    ax.set_xlabel("Month")      # (optional but recommended)
+    ax.set_title("Monthly Snow and Dust Losses")
+    
+    st.pyplot(fig)
 
     st.download_button(
         "Download results (CSV)",
