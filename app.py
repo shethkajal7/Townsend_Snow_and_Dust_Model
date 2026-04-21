@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
+import altair as alt
 
 try:
     from PIL import Image
@@ -343,19 +343,21 @@ if run:
     )
     results_plot = results_plot.sort_values("Month")
 
-    fig, ax = plt.subplots()
+    plot_data = results_plot.melt(
+    id_vars="Month",
+    var_name="Type",
+    value_name="Loss"
+    )
     
-    plot_data = results_plot.set_index("Month")[
-        ["Snow loss (%)", "Dust loss (%)", "Combined soiling loss (%)"]
-    ]
-
-    plot_data.plot(ax=ax)
+    chart = alt.Chart(plot_data).mark_line(point=True).encode(
+        x="Month",
+        y=alt.Y("Loss", title="Loss (%)"),  # ✅ Y-axis label
+        color="Type"
+    ).properties(
+        title="Monthly Snow and Dust Losses"
+    )
     
-    ax.set_ylabel("Loss (%)")   # ✅ Y-axis label added
-    ax.set_xlabel("Month")      # (optional but recommended)
-    ax.set_title("Monthly Snow and Dust Losses")
-    
-    st.pyplot(fig)
+    st.altair_chart(chart, use_container_width=True)
 
     st.download_button(
         "Download results (CSV)",
