@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-
+import matplotlib.pyplot as plt
 
 try:
     from PIL import Image
@@ -342,8 +342,6 @@ if run:
         ordered=True,
     )
     results_plot = results_plot.sort_values("Month")
-
-    import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots()
     
