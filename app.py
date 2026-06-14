@@ -25,7 +25,7 @@ st.set_page_config(
     page_icon="❄️",
     layout="wide",
 )
-st.markdown('<p class="attrib"> Webpage Author <b>Sheth Kajal</b> 😊</p>',
+st.markdown('<p class="attrib"> Webpage Author <b>Kajal Sheth </b> 😊</p>',
             unsafe_allow_html=True)
 st.title("Solar Snow and Dust Loss Calculator (Townsend Model)")
 
