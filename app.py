@@ -90,9 +90,9 @@ with st.sidebar:
 with st.sidebar:
     st.header("Snow system inputs")
 
-    tilt_deg = st.number_input("Tilt T (deg)", value=30.0, step=0.5)
-    row_length_in = st.number_input("Row length R (in)", value=118.0, step=1.0)
-    drop_height_in = st.number_input("Drop height H (in)", value=36.0, step=1.0)
+    tilt_deg = st.number_input("Tilt T (deg)", value=0.0, step=0.5)
+    row_length_in = st.number_input("Row length R (in)", value=65.7480314961, step=1.0)
+    drop_height_in = st.number_input("Drop height H (in)", value=35.4330708661, step=1.0)
 
     pileup_angle_deg = st.number_input(
         "Pileup angle P (deg)",
@@ -101,7 +101,7 @@ with st.sidebar:
         help="Leave at 40 unless you have special knowledge of snow moisture and structure for your site.",
     )
 
-    M = st.radio("M (multiple-string factor)", options=[0.75, 1.0], horizontal=True, index=0)
+    M = st.radio("M (multiple-string factor)", options=[0.75, 1.0], horizontal=True, index=1)
     bifacial = st.radio("Bifacial?", options=["NO", "YES"], horizontal=True, index=1) == "YES"
     snow_units = st.radio("Snow units", options=["in", "mm"], horizontal=True, index=0)
 
@@ -132,7 +132,7 @@ with st.sidebar:
 
     precip_units = st.radio("Precipitation units", options=["in", "mm"], horizontal=True, index=0)
 
-    manual_washes = st.radio("Manual washes per year", options=[0, 1, 2], horizontal=True, index=0)
+    manual_washes = st.radio("Manual washes per year", options=[0, 1, 2], horizontal=True, index=2)
 
     st.subheader("Ramp rate (%/day) by season")
     st.caption(
@@ -148,16 +148,16 @@ with st.sidebar:
     }
     
     ramp_dec_feb = RAMP_RATE_OPTIONS[
-        st.selectbox("Dec–Feb", options=list(RAMP_RATE_OPTIONS.keys()), index=0)
+        st.selectbox("Dec–Feb", options=list(RAMP_RATE_OPTIONS.keys()), index=1)
     ]
     ramp_mar_may = RAMP_RATE_OPTIONS[
         st.selectbox("Mar–May", options=list(RAMP_RATE_OPTIONS.keys()), index=0)
     ]
     ramp_jun_aug = RAMP_RATE_OPTIONS[
-        st.selectbox("Jun–Aug", options=list(RAMP_RATE_OPTIONS.keys()), index=0)
+        st.selectbox("Jun–Aug", options=list(RAMP_RATE_OPTIONS.keys()), index=3)
     ]
     ramp_sep_nov = RAMP_RATE_OPTIONS[
-        st.selectbox("Sep–Nov", options=list(RAMP_RATE_OPTIONS.keys()), index=0)
+        st.selectbox("Sep–Nov", options=list(RAMP_RATE_OPTIONS.keys()), index=2)
     ]
 
     rear = None
@@ -171,22 +171,22 @@ with st.sidebar:
 
 st.markdown("## Monthly inputs")
 
-# Default template values (these are safe placeholders)
+# Default values mirror TownsendSnowAndDustModel20260615.xlsx
 df = pd.DataFrame({"Month": MONTHS})
-df["Avg Temp (°C)"] = [-9.6, -6.9, 3.3, 7.5, 16.2, 19.3, 23.0, 21.1, 15.0, 8.2, 1.4, -6.8]
-df[f"Snowfall ({snow_units})"] = [12.9, 10.6, 7.0, 2.6, 0.2, 0.0, 0.0, 0.0, 0.0, 0.5, 3.6, 13.5]
-df["Front POA (kWh/m²/mo)"] = [94.4, 106.3, 135.3, 153.1, 182.8, 189.3, 190.2, 178.4, 146.2, 115.9, 79.4, 78.2]
-df["Precip"] = [4.0, 2.0, 1.5, 1.0, 0.2, 0.1, 0.1, 0.1, 0.3, 2.0, 2.1, 2.5]
+df["Avg Temp (°C)"] = [-5.8, -4.7, -0.2, 6.2, 13.3, 17.9, 20.8, 19.9, 15.9, 9.2, 3.1, -1.6]
+df[f"Snowfall ({snow_units})"] = [0.0] * 12
+df["Front POA (kWh/m²/mo)"] = [48.219, 68.498, 109.781, 134.870, 168.025, 173.757, 182.304, 160.574, 121.870, 73.659, 44.169, 35.798]
+df["Precip"] = [2.5, 2.5, 3.0, 3.0, 1.5, 1.0, 1.0, 1.0, 1.5, 2.5, 3.5, 4.5]
 
 # Events columns
 if events_have_ge1.startswith("YES"):
-    df['No of days with at least 1" of snow'] = [3.6, 3.2, 2.0, 0.7, 0.1, 0.0, 0.0, 0.0, 0.0, 0.1, 1.2, 3.8]
+    df['No of days with at least 1" of snow'] = [6.9629629630, 6.6296296296, 5.2962962963, 2.6666666667, 0.1851851852, 0.0, 0.0, 0.0, 0.0740740741, 0.1851851852, 2.0, 6.2592592593]
 else:
     df["All snow events (any depth)"] = [None] * 12
 
 # RH columns
 if rh_mode == "All-day average":
-    df["RH all-day (%)"] = [75.0, 74.5, 73.0, 69.5, 69.5, 72.0, 74.5, 78.5, 79.0, 74.5, 76.5, 77.5]
+    df["RH all-day (%)"] = [74.0, 70.0, 67.0, 65.0, 67.0, 72.0, 73.0, 74.0, 76.0, 77.0, 75.0, 77.0]
 else:
     df["RH AM (%)"] = [75.0] * 12
     df["RH PM (%)"] = [None] * 12
