@@ -144,14 +144,13 @@ def compute_avg_rh(
         return am
 
     _ensure_len12(rh_pm, "rh_pm")
-    pm = _to_float_list(rh_pm)
     out = []
-    for a, p in zip(am, pm):
-        # If user leaves PM blank (None) it should behave like Excel blank.
+    for a, p in zip(am, rh_pm):
+        # If user leaves PM blank (None) it behaves like an Excel blank.
         if p is None:
             out.append(a)
         else:
-            out.append((a + p) / 2.0)
+            out.append((a + float(p)) / 2.0)
     return out
 
 
@@ -227,18 +226,20 @@ def compute_energy_k(
     _ensure_len12(front_poa, "front_poa")
     _ensure_len12(back_poa, "back_poa")
 
-    have_mwh = (
-        front_mwh is not None and back_mwh is not None
-        and any(v is not None for v in front_mwh)
-        and any(v is not None for v in back_mwh)
-    )
+    if front_mwh is not None:
+        _ensure_len12(front_mwh, "front_mwh")
+    if back_mwh is not None:
+        _ensure_len12(back_mwh, "back_mwh")
 
     out = []
     for i in range(12):
-        if have_mwh:
-            fm = float(front_mwh[i] or 0.0)
-            bm = float(back_mwh[i] or 0.0)
-            out.append(fm + bm)
+        # Excel evaluates availability month by month with AND(ISNUMBER(G),ISNUMBER(H)).
+        have_month_mwh = (
+            front_mwh is not None and back_mwh is not None
+            and front_mwh[i] is not None and back_mwh[i] is not None
+        )
+        if have_month_mwh:
+            out.append(float(front_mwh[i]) + float(back_mwh[i]))
         else:
             if bifacial:
                 out.append(float(front_poa[i]) + float(back_poa[i]) * float(c70))
@@ -270,17 +271,20 @@ def compute_monofacial_fraction(
     if not bifacial:
         return [1.0] * 12
 
-    have_mwh = (
-        front_mwh is not None and back_mwh is not None
-        and any(v is not None for v in front_mwh)
-        and any(v is not None for v in back_mwh)
-    )
+    if front_mwh is not None:
+        _ensure_len12(front_mwh, "front_mwh")
+    if back_mwh is not None:
+        _ensure_len12(back_mwh, "back_mwh")
 
     out = []
     for i in range(12):
-        if have_mwh:
-            f = float(front_mwh[i] or 0.0)
-            b = float(back_mwh[i] or 0.0)
+        have_month_mwh = (
+            front_mwh is not None and back_mwh is not None
+            and front_mwh[i] is not None and back_mwh[i] is not None
+        )
+        if have_month_mwh:
+            f = float(front_mwh[i])
+            b = float(back_mwh[i])
             denom = f + b
             out.append(1.0 if denom <= 0 else f / denom)
         else:
@@ -501,8 +505,11 @@ def compute_month_only_soil_pct(
       If snow >= 3%          => 0
       Else if precip >= 4    => 0
       Else if precip >= 2    => 1
-      Else if precip >= 1    => floor(days_in_month/2) * ramp
-      Else (precip < 1)      => (days_in_month/2) * ramp
+      Else if precip >= 1    => floor(days_in_month/2) * Dec-Feb ramp / 2
+      Else (precip < 1)      => (days_in_month/2) * Dec-Feb ramp
+
+    Note: the workbook intentionally references the Dec-Feb ramp input (E6) for
+    every candidate wash month, including months in other seasons.
 
     Then clamp to [0, 30]. If bifacial, multiply by monofacial_fraction, then clamp again.
     """
@@ -517,13 +524,17 @@ def compute_month_only_soil_pct(
             soil = 0.0
         else:
             p = float(precip_in[i])
-            r = float(ramps[i])
+            # The workbook's manual-wash grid references cell E6 for every month.
+            # E6 is the Dec-Feb ramp-rate input, so use that same rate year-round
+            # for wash-month residual buildup to remain spreadsheet-consistent.
+            r = float(ramps[0])
             if p >= 4.0:
                 soil = 0.0
             elif p >= 2.0:
                 soil = 1.0
             elif p >= 1.0:
-                soil = math.floor(DAYS_IN_MONTH[i] / 2.0) * r
+                # Workbook rule: half of the 14/15-day normal buildup.
+                soil = math.floor(DAYS_IN_MONTH[i] / 2.0) * r / 2.0
             else:
                 soil = (DAYS_IN_MONTH[i] / 2.0) * r
 
