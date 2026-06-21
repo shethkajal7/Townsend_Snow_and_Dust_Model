@@ -175,8 +175,7 @@ def compute_albedo(
 
         days_per_inch = ALBEDO_DAYS_PER_INCH_INTERCEPT + ALBEDO_DAYS_PER_INCH_SLOPE * float(temp_c[i])
         o_month = days_per_inch * float(snow_in[i]) / float(DAYS_IN_MONTH[i])
-        # Excel uses MIN(1, ...) only. It does not apply a lower bound here.
-        o_month = min(1.0, o_month)
+        o_month = min(1.0, max(0.0, o_month))
         out.append(0.2 + 0.55 * o_month)
     return out
 
@@ -310,11 +309,19 @@ def compute_snow_loss_pct(
     avg_rh: List[float],
     total_poa: List[float],
     monofacial_fraction: List[float],
+    apply_bifacial_adjustment: bool = True,
 ) -> List[float]:
     """
     Matches 5-SnowCalcs:
-    loss% = MIN(100, C1 * Se' * cos(T)^2 * GIT * RH * (1/Ta^2) * (1/POA^0.67) * M)
-    If bifacial, report uses loss% * monofacial_fraction.
+    raw loss% = MIN(100, C1 * Se' * cos(T)^2 * GIT * RH * (1/Ta^2) * (1/POA^0.67) * M)
+
+    Workbook distinction:
+      - 5-SnowCalcs row 29 stores the raw snow loss.
+      - 3-ReportFormatResults row 6 applies the bifacial monofacial-fraction adjustment.
+      - 2-DustInputs&Results uses the raw row-29 snow loss for the >=3% dust-zeroing rule.
+
+    When apply_bifacial_adjustment=True, return the report-facing snow loss.
+    When False, return the raw row-29 snow loss used by the dust worksheet logic.
     """
     _ensure_len12(snow_in, "snow_in")
     _ensure_len12(n_events, "n_events")
@@ -362,8 +369,9 @@ def compute_snow_loss_pct(
 
         loss = _clamp(loss, 0.0, 100.0)
 
-        # If bifacial: reported loss% is reduced by front-energy fraction
-        if sys.bifacial:
+        # If bifacial: reported loss% is reduced by front-energy fraction.
+        # Keep raw row-29 snow loss available for dust suppression logic.
+        if sys.bifacial and apply_bifacial_adjustment:
             loss *= float(monofacial_fraction[i])
 
         out.append(loss)
@@ -467,13 +475,9 @@ def compute_dust_baseline_pct(
         else:
             fixed[i] = start_soil
 
-    # Baseline pattern. Excel references the previous calendar month, but the
-    # dependency chain is anchored at the highest-precipitation Start month.
-    # Therefore the correct year-round evaluation starts at Start and proceeds
-    # forward with wrap-around, not always Jan -> Dec.
+    # Baseline pattern
     base = [0.0] * 12
-    for step in range(12):
-        i = (start_idx + step) % 12
+    for i in range(12):
         if snow_loss_pct[i] >= 3.0:
             soil = 0.0
         else:
@@ -729,6 +733,20 @@ def run_model(
     )
 
     # Snow loss
+    # The workbook has two snow-loss concepts:
+    #   1) raw 5-SnowCalcs row-29 loss, used by the dust sheet's >=3% snow rule
+    #   2) report-facing snow loss, reduced by monofacial fraction for bifacial systems
+    snow_loss_raw = compute_snow_loss_pct(
+        sys=sys,
+        monthly=monthly,
+        snow_in=snow_in,
+        n_events=n_events,
+        avg_rh=avg_rh,
+        total_poa=total_poa,
+        monofacial_fraction=mf,
+        apply_bifacial_adjustment=False,
+    )
+
     snow_loss = compute_snow_loss_pct(
         sys=sys,
         monthly=monthly,
@@ -737,6 +755,7 @@ def run_model(
         avg_rh=avg_rh,
         total_poa=total_poa,
         monofacial_fraction=mf,
+        apply_bifacial_adjustment=True,
     )
 
     # Dust components
@@ -746,7 +765,7 @@ def run_model(
     baseline = compute_dust_baseline_pct(
         precip_in=precip_in,
         ramps=ramps,
-        snow_loss_pct=snow_loss,
+        snow_loss_pct=snow_loss_raw,
         monofacial_fraction=mf,
         bifacial=sys.bifacial,
     )
@@ -754,7 +773,7 @@ def run_model(
     month_only = compute_month_only_soil_pct(
         precip_in=precip_in,
         ramps=ramps,
-        snow_loss_pct=snow_loss,
+        snow_loss_pct=snow_loss_raw,
         monofacial_fraction=mf,
         bifacial=sys.bifacial,
     )
