@@ -175,7 +175,8 @@ def compute_albedo(
 
         days_per_inch = ALBEDO_DAYS_PER_INCH_INTERCEPT + ALBEDO_DAYS_PER_INCH_SLOPE * float(temp_c[i])
         o_month = days_per_inch * float(snow_in[i]) / float(DAYS_IN_MONTH[i])
-        o_month = min(1.0, max(0.0, o_month))
+        # Excel uses MIN(1, ...) only. It does not apply a lower bound here.
+        o_month = min(1.0, o_month)
         out.append(0.2 + 0.55 * o_month)
     return out
 
@@ -466,9 +467,13 @@ def compute_dust_baseline_pct(
         else:
             fixed[i] = start_soil
 
-    # Baseline pattern
+    # Baseline pattern. Excel references the previous calendar month, but the
+    # dependency chain is anchored at the highest-precipitation Start month.
+    # Therefore the correct year-round evaluation starts at Start and proceeds
+    # forward with wrap-around, not always Jan -> Dec.
     base = [0.0] * 12
-    for i in range(12):
+    for step in range(12):
+        i = (start_idx + step) % 12
         if snow_loss_pct[i] >= 3.0:
             soil = 0.0
         else:
