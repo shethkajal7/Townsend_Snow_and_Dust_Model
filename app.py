@@ -4,12 +4,20 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from decimal import Decimal, ROUND_HALF_UP
 import altair as alt
 
 try:
     from PIL import Image
 except ImportError:
     Image = None
+
+
+
+def excel_round(value, ndigits=1):
+    """Match Excel-style half-up rounding for displayed one-decimal results."""
+    quantum = Decimal("1").scaleb(-ndigits)
+    return float(Decimal(str(float(value))).quantize(quantum, rounding=ROUND_HALF_UP))
 
 from soiling_models import (
     MONTHS,
@@ -303,9 +311,9 @@ if run:
     # Results table (rounded to 1 decimal)
     results_df = pd.DataFrame({
         "Month": MONTHS,
-        "Snow loss (%)": [round(v, 1) for v in out.snow_loss_pct],
-        "Dust loss (%)": [round(v, 1) for v in out.dust_loss_pct],
-        "Combined soiling loss (%)": [round(v, 1) for v in out.combined_loss_pct],
+        "Snow loss (%)": [excel_round(v, 1) for v in out.snow_loss_pct],
+        "Dust loss (%)": [excel_round(v, 1) for v in out.dust_loss_pct],
+        "Combined soiling loss (%)": [excel_round(v, 1) for v in out.combined_loss_pct],
     })
 
     st.success("Model ran successfully.")
@@ -322,9 +330,9 @@ if run:
 
     st.markdown("## Outputs")
 
-    st.write(f"Approx. annual snow loss: {out.annual_snow_loss_pct:.1f}%")
-    st.write(f"Approx. annual dust loss: {out.annual_dust_loss_pct:.1f}%")
-    st.write(f"Approx. annual combined soiling loss: {out.annual_combined_loss_pct:.1f}%")
+    st.write(f"Approx. annual snow loss: {excel_round(out.annual_snow_loss_pct, 1):.1f}%")
+    st.write(f"Approx. annual dust loss: {excel_round(out.annual_dust_loss_pct, 1):.1f}%")
+    st.write(f"Approx. annual combined soiling loss: {excel_round(out.annual_combined_loss_pct, 1):.1f}%")
 
     st.dataframe(results_df.style.format({
         "Snow loss (%)": "{:.1f}",
