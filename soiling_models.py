@@ -594,23 +594,35 @@ def optimize_washes(
     def cap_against(raw: List[float], cap_series: List[float]) -> List[float]:
         return [min(float(raw[i]), float(cap_series[i])) for i in range(12)]
 
+    def _propagate_like_workbook(raw: List[float], reference: List[float], start_month: int) -> None:
+        """
+        Match the June 23 spreadsheet wash-matrix propagation.
+
+        For months after a wash, the workbook does not simply add the
+        month-to-month delta and floor at zero. If the reference pattern drops,
+        it uses MAX(reference_month, prior_candidate + delta). This is important
+        for wet/constant months after a wash, for example a November value of
+        1.0% must remain 1.0% rather than falling to 0.0%.
+        """
+        for m in range(start_month + 1, 12):
+            delta = float(reference[m]) - float(reference[m - 1])
+            continued = float(raw[m - 1]) + delta
+            if float(reference[m]) > float(reference[m - 1]):
+                raw[m] = continued
+            else:
+                raw[m] = max(float(reference[m]), continued)
+
     def build_1wash_raw(w1: int) -> List[float]:
         raw = [float(v) for v in baseline]
         raw[w1] = float(month_only[w1])
-
-        # propagate forward only (later months)
-        for m in range(w1 + 1, 12):
-            delta = float(baseline[m]) - float(baseline[m - 1])
-            raw[m] = max(0.0, raw[m - 1] + delta)
+        _propagate_like_workbook(raw, baseline, w1)
         return raw
 
     def build_2wash_raw(final1: List[float], w1: int, w2: int) -> List[float]:
-        # months up to w2-1 stay as 1-wash
+        # months up to w2-1 stay as the selected 1-wash profile
         raw = [float(v) for v in final1]
         raw[w2] = float(month_only[w2])
-        for m in range(w2 + 1, 12):
-            delta = float(final1[m]) - float(final1[m - 1])
-            raw[m] = max(0.0, raw[m - 1] + delta)
+        _propagate_like_workbook(raw, final1, w2)
         return raw
 
     if washes == 0:
