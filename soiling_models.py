@@ -1,76 +1,65 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 import math
 
-MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
+MONTHS = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+]
 DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-# Excel constants used by the workbook
+# Protected workbook constants.
 C1_CONST = 57000.0
 C2_CONST = 0.51
-
 ALBEDO_DAYS_PER_INCH_INTERCEPT = 1.87
 ALBEDO_DAYS_PER_INCH_SLOPE = -0.048
-
 POA_BOOST_INTERCEPT = -0.0001
 POA_BOOST_SLOPE = 0.4144
-
-
-def _ensure_len12(x: List[float], name: str) -> None:
-    if x is None or len(x) != 12:
-        raise ValueError(f"{name} must be a list of length 12.")
-
-
-def _to_float_list(x: List[float | int]) -> List[float]:
-    return [float(v) for v in x]
-
-
-def _clamp(x: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, x))
+MODULE_TEMP_INTERCEPT_C = 11.448
+MODULE_TEMP_POA_COEFFICIENT = 2.715
+SNOW_DUST_TRANSITION_PCT = 5.0
+START_MONTH_SNOW_THRESHOLD_PCT = 3.0
 
 
 @dataclass(frozen=True)
 class SnowMonthlyInputs:
-    avg_temp_c: List[float]                 # row 13
-    snow_depth: List[float]                 # row 14 (in user-selected units)
-    snow_units: str                         # "in" or "mm"
-    snow_events_ge_1in: Optional[List[float]] = None  # row 16 (if available)
-    snow_events_any: Optional[List[float]] = None     # row 17 (if >=1in not available)
-    rh_all_day: Optional[List[float]] = None          # row 19 if all-day
-    rh_am: Optional[List[float]] = None               # row 19 if AM
-    rh_pm: Optional[List[float]] = None               # row 20 if PM
-    front_poa: List[float] = None                     # D25:D36 (Front POA Insol.)
-
-    # Optional monthly inputs
-    albedo: Optional[List[Optional[float]]] = None    # M25:M36
-    back_poa: Optional[List[Optional[float]]] = None  # Back POA Insol, if known
-    front_mwh: Optional[List[Optional[float]]] = None # G25:G36
-    back_mwh: Optional[List[Optional[float]]] = None  # H25:H36 (bifacial only)
+    avg_temp_c: List[float]
+    snow_depth: List[Optional[float]]
+    snow_units: str
+    snow_events_ge_1in: Optional[List[Optional[float]]] = None
+    snow_events_any: Optional[List[Optional[float]]] = None
+    rh_all_day: Optional[List[Optional[float]]] = None
+    rh_am: Optional[List[Optional[float]]] = None
+    rh_pm: Optional[List[Optional[float]]] = None
+    front_poa: List[float] = None
+    albedo: Optional[List[Optional[float]]] = None
+    back_poa: Optional[List[Optional[float]]] = None
+    front_mwh: Optional[List[Optional[float]]] = None
+    back_mwh: Optional[List[Optional[float]]] = None
 
 
 @dataclass(frozen=True)
 class SnowSystemInputs:
-    tilt_deg: float          # T
-    row_length_in: float     # R
-    drop_height_in: float    # H
-    pileup_angle_deg: float  # P
-    M: float                 # 0.75 or 1.0
+    tilt_deg: float
+    row_length_in: float
+    drop_height_in: float
+    pileup_angle_deg: float
+    M: float
     bifacial: bool
+    temperature_coefficient: float = -0.004
 
 
 @dataclass(frozen=True)
 class DustInputs:
-    precip: List[float]
-    precip_units: str  # "in" or "mm"
+    precip: List[Optional[float]]
+    precip_units: str
     ramp_dec_feb: float
     ramp_mar_may: float
     ramp_jun_aug: float
     ramp_sep_nov: float
-    manual_washes: int  # 0, 1, 2
+    manual_washes: int
 
 
 @dataclass(frozen=True)
@@ -81,627 +70,656 @@ class BifacialRearFactors:
 
 
 @dataclass(frozen=True)
+class RampRateGuidance:
+    spring_ramp: float
+    summer_ramp: float
+    fall_ramp: float
+    winter_ramp: float
+    spring_precip_in: float
+    summer_precip_in: float
+    fall_precip_in: float
+    winter_precip_in: float
+    annual_precip_in: float
+    spring_rank: int
+    summer_rank: int
+    fall_rank: int
+    winter_rank: int
+
+
+@dataclass(frozen=True)
 class ModelOutputs:
-    snow_loss_pct: List[float]       # 12
-    dust_loss_pct: List[float]       # 12
-    combined_loss_pct: List[float]   # 12
-    best_wash_month_1: Optional[int] # 1-12 or None
-    best_wash_month_2: Optional[int] # 1-12 or None
+    snow_loss_pct: List[float]
+    snow_loss_raw_pct: List[float]
+    dust_loss_pct: List[float]
+    combined_loss_pct: List[float]
+    dust_no_wash_pct: List[float]
+    dust_one_wash_pct: List[float]
+    dust_two_wash_pct: List[float]
+    best_wash_month_1: Optional[int]
+    best_wash_month_2: Optional[int]
     annual_snow_loss_pct: float
     annual_dust_loss_pct: float
     annual_combined_loss_pct: float
+    annual_dust_no_wash_pct: float
+    annual_dust_one_wash_pct: float
+    annual_dust_two_wash_pct: float
+    energy_weights: List[float]
+    estimated_albedo: List[float]
+    calculated_back_poa: List[float]
+    monofacial_fraction: List[float]
+    monthly_energy_proxy: List[float]
+    module_temperature_c: List[float]
+    temperature_adjustment: List[float]
+    dust_month_type: List[str]
+    dust_increment_pct: List[float]
+    dust_fixed_pct: List[float]
+    manual_wash_month_residual_pct: List[float]
+    ramp_guidance: RampRateGuidance
 
 
-def convert_to_inches(values: List[float], units: str) -> List[float]:
-    if units.lower() == "in":
-        return _to_float_list(values)
-    if units.lower() == "mm":
-        return [float(v) / 25.4 for v in values]
+def _ensure_len12(values: Optional[Sequence[object]], name: str) -> None:
+    if values is None or len(values) != 12:
+        raise ValueError(f"{name} must contain exactly 12 monthly values.")
+
+
+def _is_number(value: object) -> bool:
+    if value is None or isinstance(value, bool):
+        return False
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(number)
+
+
+def _optional_number(value: object) -> Optional[float]:
+    return float(value) if _is_number(value) else None
+
+
+def _required_numbers(values: Sequence[object], name: str) -> List[float]:
+    _ensure_len12(values, name)
+    output: List[float] = []
+    for index, value in enumerate(values):
+        if not _is_number(value):
+            raise ValueError(f"{name}: {MONTHS[index]} must contain a number.")
+        output.append(float(value))
+    return output
+
+
+def _blank_as_zero(values: Optional[Sequence[object]], name: str) -> List[float]:
+    if values is None:
+        return [0.0] * 12
+    _ensure_len12(values, name)
+    return [float(value) if _is_number(value) else 0.0 for value in values]
+
+
+def _optional_months(values: Optional[Sequence[object]], name: str) -> List[Optional[float]]:
+    if values is None:
+        return [None] * 12
+    _ensure_len12(values, name)
+    return [_optional_number(value) for value in values]
+
+
+def convert_to_inches(values: Sequence[object], units: str, name: str = "monthly values") -> List[float]:
+    converted = _blank_as_zero(values, name)
+    unit = units.lower().strip()
+    if unit == "in":
+        return converted
+    if unit == "mm":
+        return [value / 25.4 for value in converted]
     raise ValueError("Units must be 'in' or 'mm'.")
 
 
 def compute_events_gt1in(
-    events_ge_1in: Optional[List[float]],
-    events_any: Optional[List[float]],
+    events_ge_1in: Optional[Sequence[object]],
+    events_any: Optional[Sequence[object]],
 ) -> List[float]:
-    """
-    Excel: row 18 = IF(ISNUMBER(row16), row16, row17*0.49)
-    Then in snow calcs: N = IF(N<1, 1, N)
-    """
-    if events_ge_1in is not None:
-        _ensure_len12(events_ge_1in, "snow_events_ge_1in")
-        base = _to_float_list(events_ge_1in)
-    else:
-        if events_any is None:
-            raise ValueError("Provide either snow_events_ge_1in or snow_events_any.")
-        _ensure_len12(events_any, "snow_events_any")
-        base = [0.49 * float(v) for v in events_any]
-
-    # Excel forces <1 to 1 (includes 0)
-    return [1.0 if v < 1.0 else float(v) for v in base]
+    """Replicate SnowInputs row 18 and SnowCalcs row 6 month by month."""
+    direct = _optional_months(events_ge_1in, "snow_events_ge_1in")
+    any_events = _optional_months(events_any, "snow_events_any")
+    output: List[float] = []
+    for direct_value, all_value in zip(direct, any_events):
+        row18 = direct_value if direct_value is not None else (0.0 if all_value is None else 0.49 * all_value)
+        output.append(1.0 if row18 < 1.0 else row18)
+    return output
 
 
 def compute_avg_rh(
-    rh_all_day: Optional[List[float]],
-    rh_am: Optional[List[float]],
-    rh_pm: Optional[List[float]],
+    rh_all_day: Optional[Sequence[object]],
+    rh_am: Optional[Sequence[object]],
+    rh_pm: Optional[Sequence[object]],
 ) -> List[float]:
-    """
-    Excel: Average Relative Humidity = AVERAGE(AM_cell:PM_cell)
-    If PM blank, average returns AM.
-    """
-    if rh_all_day is not None:
-        _ensure_len12(rh_all_day, "rh_all_day")
-        return _to_float_list(rh_all_day)
-
-    if rh_am is None:
-        raise ValueError("Provide rh_all_day or rh_am (and optionally rh_pm).")
-
-    _ensure_len12(rh_am, "rh_am")
-    am = _to_float_list(rh_am)
-
-    if rh_pm is None:
-        return am
-
-    _ensure_len12(rh_pm, "rh_pm")
-    out = []
-    for a, p in zip(am, rh_pm):
-        # If user leaves PM blank (None) it behaves like an Excel blank.
-        if p is None:
-            out.append(a)
-        else:
-            out.append((a + float(p)) / 2.0)
-    return out
+    """Replicate AVERAGE(primary RH cell:PM RH cell) for each month."""
+    primary_source = rh_all_day if rh_all_day is not None else rh_am
+    primary = _optional_months(primary_source, "primary relative humidity")
+    pm = _optional_months(rh_pm, "PM relative humidity")
+    output: List[float] = []
+    for index, (first, second) in enumerate(zip(primary, pm)):
+        numeric = [value for value in (first, second) if value is not None]
+        if not numeric:
+            raise ValueError(f"Relative humidity: enter at least one value for {MONTHS[index]}.")
+        output.append(sum(numeric) / len(numeric))
+    return output
 
 
 def compute_albedo(
-    temp_c: List[float],
-    snow_in: List[float],
-    user_albedo: Optional[List[Optional[float]]],
+    temp_c: Sequence[float],
+    snow_in: Sequence[float],
+    user_albedo: Optional[Sequence[object]],
 ) -> List[float]:
-    """
-    Excel: C25 = IF(ISNUMBER(M25), M25, 0.2 + 0.55*O25)
-    O25 = (B57 + B58*TempC) * SnowIn / days_in_month
-    """
-    _ensure_len12(temp_c, "avg_temp_c")
-    _ensure_len12(snow_in, "snow_in")
-
-    out = []
-    for i in range(12):
-        ua = None if user_albedo is None else user_albedo[i]
-        if ua is not None:
-            out.append(float(ua))
+    temperatures = _required_numbers(temp_c, "average temperature")
+    _ensure_len12(snow_in, "snowfall in inches")
+    overrides = _optional_months(user_albedo, "albedo")
+    output: List[float] = []
+    for index in range(12):
+        if overrides[index] is not None:
+            output.append(float(overrides[index]))
             continue
-
-        days_per_inch = ALBEDO_DAYS_PER_INCH_INTERCEPT + ALBEDO_DAYS_PER_INCH_SLOPE * float(temp_c[i])
-        o_month = days_per_inch * float(snow_in[i]) / float(DAYS_IN_MONTH[i])
-        # Excel uses MIN(1, ...) only. It does not apply a lower bound here.
-        o_month = min(1.0, o_month)
-        out.append(0.2 + 0.55 * o_month)
-    return out
+        snow_cover_fraction = min(
+            1.0,
+            (ALBEDO_DAYS_PER_INCH_INTERCEPT + ALBEDO_DAYS_PER_INCH_SLOPE * temperatures[index])
+            * float(snow_in[index])
+            / DAYS_IN_MONTH[index],
+        )
+        output.append(0.2 + 0.55 * snow_cover_fraction)
+    return output
 
 
 def compute_back_poa(
     bifacial: bool,
-    front_poa: List[float],
-    albedo: List[float],
-    user_back_poa: Optional[List[Optional[float]]],
+    front_poa: Sequence[float],
+    albedo: Sequence[float],
+    user_back_poa: Optional[Sequence[object]] = None,
 ) -> List[float]:
     """
-    Excel: E25 = IF(bifacial, (N44 + N45*Albedo) * FrontPOA, blank)
-    If user supplies Back POA, use it.
-    """
-    _ensure_len12(front_poa, "front_poa")
-    _ensure_len12(albedo, "albedo")
+    Replicate SnowInputs E25:E36.
 
+    The attached workbook displays N25:N36 as optional back-POA inputs, but its
+    E25:E36 formulas do not reference those cells. To preserve literal workbook
+    parity, user_back_poa is intentionally retained only for API compatibility
+    and is not used in the calculation.
+    """
+    front = _required_numbers(front_poa, "front POA")
+    _ensure_len12(albedo, "albedo")
     if not bifacial:
         return [0.0] * 12
-
-    out = []
-    for i in range(12):
-        ub = None if user_back_poa is None else user_back_poa[i]
-        if ub is not None:
-            out.append(float(ub))
-        else:
-            boost = POA_BOOST_INTERCEPT + POA_BOOST_SLOPE * float(albedo[i])
-            out.append(boost * float(front_poa[i]))
-    return out
+    return [
+        (POA_BOOST_INTERCEPT + POA_BOOST_SLOPE * float(albedo[index])) * front[index]
+        for index in range(12)
+    ]
 
 
-def compute_c70(f: BifacialRearFactors) -> float:
-    # Excel C70 = C67*(1-C68)*(1-C69)
-    return float(f.bifaciality_factor) * (1.0 - float(f.rear_shading)) * (1.0 - float(f.rear_mismatch))
+def compute_c70(factors: BifacialRearFactors) -> float:
+    return (
+        float(factors.bifaciality_factor)
+        * (1.0 - float(factors.rear_shading))
+        * (1.0 - float(factors.rear_mismatch))
+    )
 
 
-def compute_energy_k(
-    front_poa: List[float],
-    back_poa: List[float],
-    bifacial: bool,
-    c70: float,
-    front_mwh: Optional[List[Optional[float]]],
-    back_mwh: Optional[List[Optional[float]]],
-) -> List[float]:
-    """
-    Excel K25 = IF(AND(ISNUMBER(G25),ISNUMBER(H25)), G25+H25, D25 + E25*C70)
-    """
-    _ensure_len12(front_poa, "front_poa")
-    _ensure_len12(back_poa, "back_poa")
-
-    if front_mwh is not None:
-        _ensure_len12(front_mwh, "front_mwh")
-    if back_mwh is not None:
-        _ensure_len12(back_mwh, "back_mwh")
-
-    out = []
-    for i in range(12):
-        # Excel evaluates availability month by month with AND(ISNUMBER(G),ISNUMBER(H)).
-        have_month_mwh = (
-            front_mwh is not None and back_mwh is not None
-            and front_mwh[i] is not None and back_mwh[i] is not None
-        )
-        if have_month_mwh:
-            out.append(float(front_mwh[i]) + float(back_mwh[i]))
-        else:
-            if bifacial:
-                out.append(float(front_poa[i]) + float(back_poa[i]) * float(c70))
-            else:
-                out.append(float(front_poa[i]))
-    return out
-
-
-def compute_energy_weights(k: List[float]) -> List[float]:
-    total = sum(max(0.0, float(v)) for v in k)
-    if total <= 0:
-        return [1.0 / 12.0] * 12
-    return [max(0.0, float(v)) / total for v in k]
+def _monthly_mwh_available(
+    index: int,
+    front_mwh: Sequence[Optional[float]],
+    back_mwh: Sequence[Optional[float]],
+) -> bool:
+    return front_mwh[index] is not None and back_mwh[index] is not None
 
 
 def compute_monofacial_fraction(
-    front_poa: List[float],
-    back_poa: List[float],
-    bifacial: bool,
+    front_poa: Sequence[float],
+    back_poa: Sequence[float],
     c70: float,
-    front_mwh: Optional[List[Optional[float]]],
-    back_mwh: Optional[List[Optional[float]]],
+    front_mwh: Optional[Sequence[object]],
+    back_mwh: Optional[Sequence[object]],
 ) -> List[float]:
-    """
-    Excel I25 = IF(AND(ISNUMBER(G25),ISNUMBER(H25)),
-                   G25/(G25+H25),
-                   D25/(D25+E25*C70))
-    """
-    if not bifacial:
-        return [1.0] * 12
-
-    if front_mwh is not None:
-        _ensure_len12(front_mwh, "front_mwh")
-    if back_mwh is not None:
-        _ensure_len12(back_mwh, "back_mwh")
-
-    out = []
-    for i in range(12):
-        have_month_mwh = (
-            front_mwh is not None and back_mwh is not None
-            and front_mwh[i] is not None and back_mwh[i] is not None
-        )
-        if have_month_mwh:
-            f = float(front_mwh[i])
-            b = float(back_mwh[i])
-            denom = f + b
-            out.append(1.0 if denom <= 0 else f / denom)
+    front = _required_numbers(front_poa, "front POA")
+    _ensure_len12(back_poa, "calculated back POA")
+    front_energy = _optional_months(front_mwh, "front MWh")
+    back_energy = _optional_months(back_mwh, "back MWh")
+    output: List[float] = []
+    for index in range(12):
+        if _monthly_mwh_available(index, front_energy, back_energy):
+            numerator = float(front_energy[index])
+            denominator = numerator + float(back_energy[index])
         else:
-            f = float(front_poa[i])
-            b = float(back_poa[i]) * float(c70)
-            denom = f + b
-            out.append(1.0 if denom <= 0 else f / denom)
-    return out
+            numerator = front[index]
+            denominator = numerator + float(back_poa[index]) * c70
+        if denominator == 0:
+            raise ValueError(f"Monofacial fraction is undefined for {MONTHS[index]} because its denominator is zero.")
+        output.append(numerator / denominator)
+    return output
 
 
-def compute_total_poa(front_poa: List[float], back_poa: List[float], bifacial: bool) -> List[float]:
-    if not bifacial:
-        return _to_float_list(front_poa)
-    return [float(f) + float(b) for f, b in zip(front_poa, back_poa)]
+def compute_monthly_energy_proxy(
+    front_poa: Sequence[float],
+    back_poa: Sequence[float],
+    c70: float,
+    front_mwh: Optional[Sequence[object]],
+    back_mwh: Optional[Sequence[object]],
+) -> List[float]:
+    front = _required_numbers(front_poa, "front POA")
+    _ensure_len12(back_poa, "calculated back POA")
+    front_energy = _optional_months(front_mwh, "front MWh")
+    back_energy = _optional_months(back_mwh, "back MWh")
+    output: List[float] = []
+    for index in range(12):
+        if _monthly_mwh_available(index, front_energy, back_energy):
+            output.append(float(front_energy[index]) + float(back_energy[index]))
+        else:
+            output.append(front[index] + float(back_poa[index]) * c70)
+    return output
+
+
+def compute_temperature_adjusted_energy_weights(
+    avg_temp_c: Sequence[float],
+    total_poa: Sequence[float],
+    monthly_energy_proxy: Sequence[float],
+    temperature_coefficient: float,
+) -> Tuple[List[float], List[float], List[float]]:
+    temperatures = _required_numbers(avg_temp_c, "average temperature")
+    _ensure_len12(total_poa, "total POA")
+    _ensure_len12(monthly_energy_proxy, "monthly energy proxy")
+
+    annual_avg_temp = sum(temperatures[i] * DAYS_IN_MONTH[i] for i in range(12)) / 365.0
+    annual_total_poa = sum(float(value) for value in total_poa)
+    annual_module_temp = (
+        annual_avg_temp
+        + MODULE_TEMP_INTERCEPT_C
+        + MODULE_TEMP_POA_COEFFICIENT * annual_total_poa / 365.0
+    )
+
+    module_temp = [
+        temperatures[i]
+        + MODULE_TEMP_INTERCEPT_C
+        + MODULE_TEMP_POA_COEFFICIENT * float(total_poa[i]) / DAYS_IN_MONTH[i]
+        for i in range(12)
+    ]
+    adjustment = [
+        1.0 + (module_temp[i] - annual_module_temp) * float(temperature_coefficient)
+        for i in range(12)
+    ]
+    adjusted_energy = [float(monthly_energy_proxy[i]) * adjustment[i] for i in range(12)]
+    annual_adjusted_energy = sum(adjusted_energy)
+    if annual_adjusted_energy == 0:
+        raise ValueError("Temperature-adjusted annual energy is zero, so annual weighting cannot be calculated.")
+    weights = [value / annual_adjusted_energy for value in adjusted_energy]
+    return weights, module_temp, adjustment
 
 
 def compute_snow_loss_pct(
     sys: SnowSystemInputs,
-    monthly: SnowMonthlyInputs,
-    snow_in: List[float],
-    n_events: List[float],
-    avg_rh: List[float],
-    total_poa: List[float],
-    monofacial_fraction: List[float],
-    apply_bifacial_adjustment: bool = True,
+    avg_temp_c: Sequence[float],
+    snow_in: Sequence[float],
+    n_events: Sequence[float],
+    avg_rh: Sequence[float],
+    total_poa: Sequence[float],
+    monofacial_fraction: Sequence[float],
+    apply_bifacial_adjustment: bool,
 ) -> List[float]:
-    """
-    Matches 5-SnowCalcs:
-    raw loss% = MIN(100, C1 * Se' * cos(T)^2 * GIT * RH * (1/Ta^2) * (1/POA^0.67) * M)
+    temperatures = _required_numbers(avg_temp_c, "average temperature")
+    for values, name in (
+        (snow_in, "snowfall in inches"),
+        (n_events, "snow events"),
+        (avg_rh, "average relative humidity"),
+        (total_poa, "total POA"),
+        (monofacial_fraction, "monofacial fraction"),
+    ):
+        _ensure_len12(values, name)
 
-    Workbook distinction:
-      - 5-SnowCalcs row 29 stores the raw snow loss.
-      - 3-ReportFormatResults row 6 applies the bifacial monofacial-fraction adjustment.
-      - 2-DustInputs&Results uses the raw row-29 snow loss for the >=3% dust-zeroing rule.
+    tan_p = math.tan(math.radians(float(sys.pileup_angle_deg)))
+    if tan_p == 0:
+        raise ValueError("Pileup angle produces a zero tangent and cannot be used.")
 
-    When apply_bifacial_adjustment=True, return the report-facing snow loss.
-    When False, return the raw row-29 snow loss used by the dust worksheet logic.
-    """
-    _ensure_len12(snow_in, "snow_in")
-    _ensure_len12(n_events, "n_events")
-    _ensure_len12(avg_rh, "avg_rh")
-    _ensure_len12(total_poa, "total_poa")
-    _ensure_len12(monofacial_fraction, "monofacial_fraction")
+    for index, poa in enumerate(total_poa):
+        if float(poa) <= 0:
+            raise ValueError(f"Total POA for {MONTHS[index]} must be greater than zero.")
 
-    T = float(sys.tilt_deg)
-    R = float(sys.row_length_in)
-    H = float(sys.drop_height_in)
-    P = float(sys.pileup_angle_deg)
-    M = float(sys.M)
+    effective_snow = [
+        0.5 * (1.0 + 1.0 / float(n_events[i])) * float(snow_in[i])
+        for i in range(12)
+    ]
+    previous_effective_snow = [effective_snow[(i - 1) % 12] for i in range(12)]
+    weighted_effective_snow = [
+        0.667 * effective_snow[i] + 0.333 * previous_effective_snow[i]
+        for i in range(12)
+    ]
 
-    cosT = math.cos(math.radians(T))
-    cosT2 = cosT * cosT
-    tanP = math.tan(math.radians(P))
-    if abs(tanP) < 1e-12:
-        raise ValueError("Pileup angle produces tan(P) ~ 0, invalid.")
-
-    # Se = 0.5*(1+1/N)*S
-    S = _to_float_list(snow_in)
-    N = _to_float_list(n_events)
-    Se = [0.5 * (1.0 + 1.0 / N[i]) * S[i] for i in range(12)]
-    Se_prev = [Se[(i - 1) % 12] for i in range(12)]
-    Se_prime = [0.667 * Se[i] + 0.333 * Se_prev[i] for i in range(12)]
-
-    out = []
+    cos_t = math.cos(math.radians(float(sys.tilt_deg)))
+    output: List[float] = []
     for i in range(12):
-        TaK = float(monthly.avg_temp_c[i]) + 273.15
-        RH = float(avg_rh[i])
-        POA = float(total_poa[i])
-
-        # gamma pieces
-        denom_sub = max(0.1, H * H - Se_prime[i] * Se_prime[i])
-        gamma_denom = 0.5 * (1.0 / tanP) * denom_sub
-        gamma_num = R * cosT * Se_prime[i]
-        gamma = gamma_num / gamma_denom if gamma_denom != 0 else 0.0
-
-        GIT = 1.0 - C2_CONST * math.exp(-gamma)
-
-        if TaK <= 0 or POA <= 0:
-            loss = 0.0
-        else:
-            loss = C1_CONST * Se_prime[i] * cosT2 * GIT * RH * (1.0 / (TaK * TaK)) * (1.0 / (POA ** 0.67)) * M
-
-        loss = _clamp(loss, 0.0, 100.0)
-
-        # If bifacial: reported loss% is reduced by front-energy fraction.
-        # Keep raw row-29 snow loss available for dust suppression logic.
+        denominator_subcalc = max(
+            0.1,
+            float(sys.drop_height_in) ** 2 - weighted_effective_snow[i] ** 2,
+        )
+        gamma_denominator = 0.5 * (1.0 / tan_p) * denominator_subcalc
+        gamma_numerator = float(sys.row_length_in) * cos_t * weighted_effective_snow[i]
+        gamma = gamma_numerator / gamma_denominator
+        ground_interference = 1.0 - C2_CONST * math.exp(-gamma)
+        air_temp_k = temperatures[i] + 273.15
+        loss = (
+            C1_CONST
+            * weighted_effective_snow[i]
+            * (cos_t ** 2)
+            * ground_interference
+            * float(avg_rh[i])
+            * (1.0 / (air_temp_k ** 2))
+            * (1.0 / (float(total_poa[i]) ** 0.67))
+            * float(sys.M)
+        )
+        loss = min(100.0, loss)
         if sys.bifacial and apply_bifacial_adjustment:
             loss *= float(monofacial_fraction[i])
-
-        out.append(loss)
-
-    return out
+        output.append(loss)
+    return output
 
 
-def _seasonal_ramps(d: DustInputs) -> List[float]:
-    r = [0.0] * 12
-    # Dec-Feb
-    for i in [11, 0, 1]:
-        r[i] = float(d.ramp_dec_feb)
-    # Mar-May
-    for i in [2, 3, 4]:
-        r[i] = float(d.ramp_mar_may)
-    # Jun-Aug
-    for i in [5, 6, 7]:
-        r[i] = float(d.ramp_jun_aug)
-    # Sep-Nov
-    for i in [8, 9, 10]:
-        r[i] = float(d.ramp_sep_nov)
-    return r
+def _seasonal_ramps(dust: DustInputs) -> List[float]:
+    ramps = [0.0] * 12
+    for index in (11, 0, 1):
+        ramps[index] = float(dust.ramp_dec_feb)
+    for index in (2, 3, 4):
+        ramps[index] = float(dust.ramp_mar_may)
+    for index in (5, 6, 7):
+        ramps[index] = float(dust.ramp_jun_aug)
+    for index in (8, 9, 10):
+        ramps[index] = float(dust.ramp_sep_nov)
+    if any(value < 0 for value in ramps):
+        raise ValueError("Dust ramp rates must be nonnegative.")
+    return ramps
 
 
-def _precip_in_inches(precip: List[float], units: str) -> List[float]:
-    _ensure_len12(precip, "precip")
-    if units.lower() == "in":
-        return _to_float_list(precip)
-    if units.lower() == "mm":
-        return [float(v) / 25.4 for v in precip]
-    raise ValueError("Precip units must be 'in' or 'mm'.")
+def _excel_rank_desc(values: Sequence[float]) -> List[int]:
+    return [1 + sum(1 for other in values if other > value) for value in values]
+
+
+def _suggested_ramp(annual_rain: float, rank: int) -> float:
+    if annual_rain < 10:
+        return 0.025
+    if annual_rain < 15:
+        return 0.05 if rank == 4 else 0.025
+    if annual_rain < 25:
+        if rank == 4:
+            return 0.15
+        if rank in (2, 3):
+            return 0.05
+        return 0.025
+    if annual_rain < 40:
+        return 0.1 if rank > 2 else 0.05
+    return 0.1
+
+
+def compute_ramp_rate_guidance(precip: Sequence[object], units: str) -> RampRateGuidance:
+    rain = convert_to_inches(precip, units, "precipitation")
+    quarter_totals = [
+        sum(rain[2:5]),
+        sum(rain[5:8]),
+        sum(rain[8:11]),
+        rain[11] + rain[0] + rain[1],
+    ]
+    ranks = _excel_rank_desc(quarter_totals)
+    annual = sum(quarter_totals)
+    suggestions = [_suggested_ramp(annual, rank) for rank in ranks]
+    return RampRateGuidance(
+        spring_ramp=suggestions[0],
+        summer_ramp=suggestions[1],
+        fall_ramp=suggestions[2],
+        winter_ramp=suggestions[3],
+        spring_precip_in=quarter_totals[0],
+        summer_precip_in=quarter_totals[1],
+        fall_precip_in=quarter_totals[2],
+        winter_precip_in=quarter_totals[3],
+        annual_precip_in=annual,
+        spring_rank=ranks[0],
+        summer_rank=ranks[1],
+        fall_rank=ranks[2],
+        winter_rank=ranks[3],
+    )
 
 
 def compute_dust_baseline_pct(
-    precip_in: List[float],
-    ramps: List[float],
-    snow_loss_pct: List[float],
-    monofacial_fraction: List[float],
+    precip_in: Sequence[float],
+    ramps: Sequence[float],
+    snow_loss_raw_pct: Sequence[float],
+    snow_loss_report_pct: Sequence[float],
+    monofacial_fraction: Sequence[float],
     bifacial: bool,
-) -> List[float]:
-    """
-    Matches 2-DustInputs&Results baseline H11:H22 logic.
-    """
-    _ensure_len12(precip_in, "precip_in")
-    _ensure_len12(ramps, "ramps")
-    _ensure_len12(snow_loss_pct, "snow_loss_pct")
-    _ensure_len12(monofacial_fraction, "monofacial_fraction")
+) -> Tuple[List[float], List[str], List[float], List[float], float, int]:
+    for values, name in (
+        (precip_in, "precipitation in inches"),
+        (ramps, "seasonal ramp rates"),
+        (snow_loss_raw_pct, "raw snow loss"),
+        (snow_loss_report_pct, "reported snow loss"),
+        (monofacial_fraction, "monofacial fraction"),
+    ):
+        _ensure_len12(values, name)
 
-    # L20 max precip, L21 match index (1-based in Excel), we use 0-based
-    max_p = max(precip_in)
-    start_idx = precip_in.index(max_p)
-
-    # P22 is snow loss at start month (used to zero out start soil logic)
-    start_snow = float(snow_loss_pct[start_idx])
-
-    # L22 start soil %
-    if start_snow >= 3.0:
+    max_precip = max(float(value) for value in precip_in)
+    start_index = next(i for i, value in enumerate(precip_in) if float(value) == max_precip)
+    start_snow = (
+        float(snow_loss_report_pct[start_index])
+        if bifacial
+        else float(snow_loss_raw_pct[start_index])
+    )
+    if start_snow >= START_MONTH_SNOW_THRESHOLD_PCT:
         start_soil = 0.0
+    elif max_precip >= 4.0:
+        start_soil = 0.0
+    elif max_precip >= 2.0:
+        start_soil = 1.0
     else:
-        if max_p >= 4.0:
-            start_soil = 0.0
-        elif max_p >= 2.0:
-            start_soil = 1.0
-        else:
-            start_soil = 2.0
+        start_soil = 2.0
 
-    # Month types and increments/fixed terms
-    mtype = [""] * 12
-    inc = [0.0] * 12
+    month_type: List[str] = []
+    for index, precip in enumerate(precip_in):
+        if index == start_index:
+            month_type.append("Start")
+        elif float(precip) >= 2.0:
+            month_type.append("Const.")
+        else:
+            month_type.append("Additive")
+
+    increment = [0.0] * 12
     fixed = [0.0] * 12
-
-    for i in range(12):
-        if i == start_idx:
-            mtype[i] = "Start"
+    for index in range(12):
+        precip = float(precip_in[index])
+        if month_type[index] in ("Const.", "Start"):
+            increment[index] = 0.0
+        elif precip < 0.5:
+            increment[index] = DAYS_IN_MONTH[index] * float(ramps[index])
         else:
-            mtype[i] = "Const." if precip_in[i] >= 2.0 else "Additive"
+            previous = (index - 1) % 12
+            buildup_days = DAYS_IN_MONTH[index] // 2 if month_type[previous] == "Additive" else 8
+            increment[index] = buildup_days * float(ramps[index])
 
-    for i in range(12):
-        if mtype[i] in ("Const.", "Start"):
-            inc[i] = 0.0
+        if month_type[index] == "Const.":
+            fixed[index] = 0.0 if precip >= 4.0 else 1.0
         else:
-            # additive
-            if precip_in[i] < 1.0:
-                inc[i] = DAYS_IN_MONTH[i] * ramps[i]
-            else:
-                # 1 <= precip < 2: grace depends on previous month type
-                prev = (i - 1) % 12
-                if mtype[prev] == "Additive":
-                    inc[i] = 15.0 * ramps[i]
-                else:
-                    inc[i] = 8.0 * ramps[i]
+            fixed[index] = start_soil
 
-        if mtype[i] == "Const.":
-            if precip_in[i] >= 4.0:
-                fixed[i] = 0.0
-            elif precip_in[i] >= 2.0:
-                fixed[i] = 1.0
-            else:
-                # Excel uses a placeholder text here, but it never happens because Const. implies >=2
-                fixed[i] = start_soil
-        else:
-            fixed[i] = start_soil
-
-    # Baseline pattern. Excel references the previous calendar month, but the
-    # dependency chain is anchored at the highest-precipitation Start month.
-    # Therefore the correct year-round evaluation starts at Start and proceeds
-    # forward with wrap-around, not always Jan -> Dec.
-    base = [0.0] * 12
+    baseline = [0.0] * 12
     for step in range(12):
-        i = (start_idx + step) % 12
-        if snow_loss_pct[i] >= 3.0:
+        index = (start_index + step) % 12
+        if float(snow_loss_raw_pct[index]) >= SNOW_DUST_TRANSITION_PCT:
             soil = 0.0
+        elif month_type[index] == "Additive":
+            soil = increment[index] + baseline[(index - 1) % 12]
         else:
-            if mtype[i] == "Additive":
-                prev = (i - 1) % 12
-                soil = base[prev] + inc[i]
-            elif mtype[i] == "Const.":
-                soil = fixed[i]
-            else:  # Start
-                soil = start_soil
-
-        soil = _clamp(soil, 0.0, 30.0)  # Excel MIN(30,...)
+            soil = fixed[index]
+        soil = min(30.0, soil)
         if bifacial:
-            soil *= float(monofacial_fraction[i])
-        base[i] = _clamp(soil, 0.0, 30.0)
+            soil *= float(monofacial_fraction[index])
+        baseline[index] = soil
 
-    return base
+    return baseline, month_type, increment, fixed, start_soil, start_index
 
 
-def compute_month_only_soil_pct(
-    precip_in: List[float],
-    ramps: List[float],
-    snow_loss_pct: List[float],
-    monofacial_fraction: List[float],
+def compute_manual_wash_month_residual_pct(
+    precip_in: Sequence[float],
+    ramps: Sequence[float],
+    snow_loss_raw_pct: Sequence[float],
+    monofacial_fraction: Sequence[float],
     bifacial: bool,
 ) -> List[float]:
-    """
-    Matches 2-DustInputs&Results B30:B41 (updated workbook 2026-02-26):
+    for values, name in (
+        (precip_in, "precipitation in inches"),
+        (ramps, "seasonal ramp rates"),
+        (snow_loss_raw_pct, "raw snow loss"),
+        (monofacial_fraction, "monofacial fraction"),
+    ):
+        _ensure_len12(values, name)
 
-    "Soil% for this month only. If a manual wash month, no grace period."
-    The workbook sets the wash-month loss to ONE-HALF of the normal accumulation.
-
-    Rules (before caps/bifacial):
-      If snow >= 3%          => 0
-      Else if precip >= 4    => 0
-      Else if precip >= 2    => 1
-      Else if precip >= 1    => floor(days_in_month/2) * Dec-Feb ramp / 2
-      Else (precip < 1)      => (days_in_month/2) * Dec-Feb ramp
-
-    Note: the workbook intentionally references the Dec-Feb ramp input (E6) for
-    every candidate wash month, including months in other seasons.
-
-    Then clamp to [0, 30]. If bifacial, multiply by monofacial_fraction, then clamp again.
-    """
-    _ensure_len12(precip_in, "precip_in")
-    _ensure_len12(ramps, "ramps")
-    _ensure_len12(snow_loss_pct, "snow_loss_pct")
-    _ensure_len12(monofacial_fraction, "monofacial_fraction")
-
-    out: List[float] = []
-    for i in range(12):
-        if float(snow_loss_pct[i]) >= 3.0:
-            soil = 0.0
+    residual: List[float] = []
+    for index in range(12):
+        precip = float(precip_in[index])
+        if float(snow_loss_raw_pct[index]) >= SNOW_DUST_TRANSITION_PCT:
+            value = 0.0
+        elif precip >= 4.0:
+            value = 0.0
+        elif precip >= 2.0:
+            value = 0.5
+        elif precip >= 0.5:
+            value = (DAYS_IN_MONTH[index] // 2) * float(ramps[index]) / 2.0
         else:
-            p = float(precip_in[i])
-            # The workbook's manual-wash grid references cell E6 for every month.
-            # E6 is the Dec-Feb ramp-rate input, so use that same rate year-round
-            # for wash-month residual buildup to remain spreadsheet-consistent.
-            r = float(ramps[0])
-            if p >= 4.0:
-                soil = 0.0
-            elif p >= 2.0:
-                soil = 1.0
-            elif p >= 1.0:
-                # Workbook rule: half of the 14/15-day normal buildup.
-                soil = math.floor(DAYS_IN_MONTH[i] / 2.0) * r / 2.0
-            else:
-                soil = (DAYS_IN_MONTH[i] / 2.0) * r
-
-        soil = _clamp(soil, 0.0, 30.0)
+            value = DAYS_IN_MONTH[index] * float(ramps[index]) / 2.0
         if bifacial:
-            soil *= float(monofacial_fraction[i])
-        out.append(_clamp(soil, 0.0, 30.0))
-
-    return out
-
-
-def optimize_washes(
-    baseline: List[float],
-    month_only: List[float],
-    energy_weights: List[float],
-    washes: int,
-) -> Tuple[List[float], Optional[int], Optional[int]]:
-    """
-    Updated workbook behavior (2026-02-26):
-
-    - The wash-month loss is ONE-HALF of the normal monthly accumulation. This is already
-      encoded in month_only (B30:B41).
-    - The 2nd wash is only allowed to occur in a month STRICTLY LATER than the 1st wash.
-      Months earlier than (or equal to) the 1st wash month remain identical to the 1-wash profile.
-
-    Implementation notes:
-      * We keep the model year-ordered (Jan..Dec), no wrap-around improvements.
-      * We use energy_weights as the objective weights (SUMPRODUCT in Excel).
-      * Final washed patterns are capped so they never exceed the reference pattern:
-          - 1-wash capped against baseline (no-wash final)
-          - 2-wash capped against best 1-wash final
-      * "None" wash behavior: if MIN(scores) == AVERAGE(scores) (within epsilon), return None.
-    """
-    _ensure_len12(baseline, "baseline")
-    _ensure_len12(month_only, "month_only")
-    _ensure_len12(energy_weights, "energy_weights")
-
-    washes = int(max(0, min(2, washes)))
-
-    def score(vec: List[float]) -> float:
-        return sum(float(vec[i]) * float(energy_weights[i]) for i in range(12))
-
-    def cap_against(raw: List[float], cap_series: List[float]) -> List[float]:
-        return [min(float(raw[i]), float(cap_series[i])) for i in range(12)]
-
-    def _propagate_like_workbook(raw: List[float], reference: List[float], start_month: int) -> None:
-        """
-        Match the June 23 spreadsheet wash-matrix propagation.
-
-        For months after a wash, the workbook does not simply add the
-        month-to-month delta and floor at zero. If the reference pattern drops,
-        it uses MAX(reference_month, prior_candidate + delta). This is important
-        for wet/constant months after a wash, for example a November value of
-        1.0% must remain 1.0% rather than falling to 0.0%.
-        """
-        for m in range(start_month + 1, 12):
-            delta = float(reference[m]) - float(reference[m - 1])
-            continued = float(raw[m - 1]) + delta
-            if float(reference[m]) > float(reference[m - 1]):
-                raw[m] = continued
-            else:
-                raw[m] = max(float(reference[m]), continued)
-
-    def build_1wash_raw(w1: int) -> List[float]:
-        raw = [float(v) for v in baseline]
-        raw[w1] = float(month_only[w1])
-        _propagate_like_workbook(raw, baseline, w1)
-        return raw
-
-    def build_2wash_raw(final1: List[float], w1: int, w2: int) -> List[float]:
-        # months up to w2-1 stay as the selected 1-wash profile
-        raw = [float(v) for v in final1]
-        raw[w2] = float(month_only[w2])
-        _propagate_like_workbook(raw, final1, w2)
-        return raw
-
-    if washes == 0:
-        return [float(v) for v in baseline], None, None
-
-    # --- 1 wash ---
-    raw_candidates_1 = [build_1wash_raw(w) for w in range(12)]
-    final_candidates_1 = [cap_against(r, baseline) for r in raw_candidates_1]
-    scores_1 = [score(r) for r in raw_candidates_1]  # Excel scores the raw grid
-
-    min_s1 = min(scores_1)
-    avg_s1 = sum(scores_1) / len(scores_1)
-
-    if abs(min_s1 - avg_s1) < 1e-12:
-        # Excel displays None, and the pattern stays baseline
-        final1 = [float(v) for v in baseline]
-        best1 = None
-    else:
-        best1_idx = scores_1.index(min_s1)  # MATCH first occurrence
-        final1 = final_candidates_1[best1_idx]
-        best1 = best1_idx + 1  # 1-12
-
-    if washes == 1:
-        return final1, best1, None
-
-    # --- 2 washes ---
-    if best1 is None:
-        return final1, None, None
-
-    w1 = best1 - 1
-
-    # Only allow 2nd wash in a strictly later month (no wrap-around)
-    possible_w2 = list(range(w1 + 1, 12))
-    if not possible_w2:
-        return final1, best1, None
-
-    raw_candidates_2 = []
-    final_candidates_2 = []
-    scores_2 = []
-    for w2 in possible_w2:
-        raw2 = build_2wash_raw(final1, w1=w1, w2=w2)
-        raw_candidates_2.append((w2, raw2))
-        final2 = cap_against(raw2, final1)
-        final_candidates_2.append(final2)
-        scores_2.append(score(raw2))
-
-    min_s2 = min(scores_2)
-    avg_s2 = sum(scores_2) / len(scores_2)
-
-    if abs(min_s2 - avg_s2) < 1e-12:
-        return final1, best1, None
-
-    best2_local_idx = scores_2.index(min_s2)
-    best2_w2, _ = raw_candidates_2[best2_local_idx]
-    final2 = final_candidates_2[best2_local_idx]
-    best2 = best2_w2 + 1
-
-    return final2, best1, best2
+            value *= float(monofacial_fraction[index])
+        residual.append(value)
+    return residual
 
 
-def compute_combined_loss_pct(snow_loss_pct: List[float], dust_loss_pct: List[float]) -> List[float]:
-    """
-    Excel report logic:
-      if snow >= 3% then combined = snow
-      else combined = snow + dust - snow*dust (fractions)
-    """
-    _ensure_len12(snow_loss_pct, "snow_loss_pct")
-    _ensure_len12(dust_loss_pct, "dust_loss_pct")
+def _weighted_score(profile: Sequence[float], weights: Sequence[float]) -> float:
+    return sum(float(profile[i]) * float(weights[i]) for i in range(12))
 
-    out = []
-    for s, d in zip(snow_loss_pct, dust_loss_pct):
-        if float(s) >= 3.0:
-            out.append(float(s))
+
+def _build_wash_candidate(
+    reference: Sequence[float],
+    residual: Sequence[float],
+    wash_index: int,
+) -> List[float]:
+    candidate = [float(value) for value in reference]
+    candidate[wash_index] = float(residual[wash_index])
+    for index in range(wash_index + 1, 12):
+        delta = float(reference[index]) - float(reference[index - 1])
+        continued = candidate[index - 1] + delta
+        if float(reference[index]) > float(reference[index - 1]):
+            candidate[index] = continued
         else:
-            sf = float(s) / 100.0
-            df = float(d) / 100.0
-            cf = sf + df - sf * df
-            out.append(100.0 * cf)
-    return out
+            candidate[index] = max(float(reference[index]), continued)
+    return candidate
+
+
+def _best_candidate(
+    candidates: Sequence[Sequence[float]],
+    weights: Sequence[float],
+) -> Optional[int]:
+    scores = [_weighted_score(candidate, weights) for candidate in candidates]
+    minimum = min(scores)
+    average = sum(scores) / len(scores)
+    if abs(minimum - average) < 1e-12:
+        return None
+    return scores.index(minimum)
+
+
+def _solve_selected_wash_profile(
+    reference: Sequence[float],
+    candidate: Sequence[float],
+    month_type: Sequence[str],
+    increment: Sequence[float],
+    fixed: Sequence[float],
+    start_soil: float,
+) -> List[float]:
+    """Solve the circular I11:I22 or J11:J22 worksheet recurrence."""
+    profile = [float(value) for value in reference]
+    for _ in range(200):
+        previous_profile = profile.copy()
+        for index in range(12):
+            if month_type[index] == "Additive":
+                rule_value = profile[(index - 1) % 12] + float(increment[index])
+            elif month_type[index] == "Const.":
+                rule_value = float(fixed[index])
+            else:
+                rule_value = float(start_soil)
+            profile[index] = min(
+                float(candidate[index]),
+                rule_value,
+                float(reference[index]),
+            )
+        if max(abs(profile[i] - previous_profile[i]) for i in range(12)) < 1e-12:
+            break
+    else:
+        raise ValueError("The wash-profile recurrence did not converge.")
+    return profile
+
+
+def compute_wash_profiles(
+    baseline: Sequence[float],
+    residual: Sequence[float],
+    weights: Sequence[float],
+    month_type: Sequence[str],
+    increment: Sequence[float],
+    fixed: Sequence[float],
+    start_soil: float,
+) -> Tuple[List[float], List[float], Optional[int], Optional[int]]:
+    one_wash_candidates = [
+        _build_wash_candidate(baseline, residual, wash_index)
+        for wash_index in range(12)
+    ]
+    best_one_index = _best_candidate(one_wash_candidates, weights)
+    if best_one_index is None:
+        one_wash = [float(value) for value in baseline]
+    else:
+        one_wash = _solve_selected_wash_profile(
+            reference=baseline,
+            candidate=one_wash_candidates[best_one_index],
+            month_type=month_type,
+            increment=increment,
+            fixed=fixed,
+            start_soil=start_soil,
+        )
+
+    two_wash_candidates = [
+        _build_wash_candidate(one_wash, residual, wash_index)
+        for wash_index in range(12)
+    ]
+    best_two_index = _best_candidate(two_wash_candidates, weights)
+    if best_two_index is None:
+        two_wash = one_wash.copy()
+    else:
+        two_wash = _solve_selected_wash_profile(
+            reference=one_wash,
+            candidate=two_wash_candidates[best_two_index],
+            month_type=month_type,
+            increment=increment,
+            fixed=fixed,
+            start_soil=start_soil,
+        )
+
+    return (
+        one_wash,
+        two_wash,
+        None if best_one_index is None else best_one_index + 1,
+        None if best_two_index is None else best_two_index + 1,
+    )
+
+
+def compute_combined_loss_pct(
+    snow_loss_pct: Sequence[float],
+    dust_loss_pct: Sequence[float],
+) -> List[float]:
+    _ensure_len12(snow_loss_pct, "reported snow loss")
+    _ensure_len12(dust_loss_pct, "selected dust loss")
+    output: List[float] = []
+    for snow, dust in zip(snow_loss_pct, dust_loss_pct):
+        snow_fraction = float(snow) / 100.0
+        dust_fraction = float(dust) / 100.0
+        if snow_fraction >= 0.05:
+            combined = snow_fraction
+        elif snow_fraction == 0:
+            combined = dust_fraction
+        else:
+            combined = snow_fraction + dust_fraction - snow_fraction * dust_fraction
+        output.append(combined * 100.0)
+    return output
 
 
 def run_model(
@@ -710,122 +728,139 @@ def run_model(
     dust: DustInputs,
     rear: Optional[BifacialRearFactors],
 ) -> ModelOutputs:
-    # Validate core monthly inputs
-    _ensure_len12(monthly.avg_temp_c, "avg_temp_c")
-    _ensure_len12(monthly.snow_depth, "snow_depth")
-    _ensure_len12(monthly.front_poa, "front_poa")
-
-    # Convert snow to inches using units selector
-    snow_in = convert_to_inches(monthly.snow_depth, monthly.snow_units)
-
-    # Events logic
+    avg_temp = _required_numbers(monthly.avg_temp_c, "average temperature")
+    front_poa = _required_numbers(monthly.front_poa, "front POA")
+    snow_in = convert_to_inches(monthly.snow_depth, monthly.snow_units, "snowfall")
     n_events = compute_events_gt1in(monthly.snow_events_ge_1in, monthly.snow_events_any)
-
-    # RH logic
     avg_rh = compute_avg_rh(monthly.rh_all_day, monthly.rh_am, monthly.rh_pm)
 
-    # Bifacial factors
     if sys.bifacial:
         if rear is None:
-            raise ValueError("Bifacial is YES, provide rear factors (bifaciality, shading, mismatch).")
+            raise ValueError("Bifacial systems require bifaciality, rear-shading, and rear-mismatch factors.")
         c70 = compute_c70(rear)
     else:
         c70 = 1.0
 
-    # Albedo and back POA
-    albedo = compute_albedo(monthly.avg_temp_c, snow_in, monthly.albedo)
-    back_poa = compute_back_poa(sys.bifacial, monthly.front_poa, albedo, monthly.back_poa)
-
-    # Total POA for snow model denominator (Excel B25)
-    total_poa = compute_total_poa(monthly.front_poa, back_poa, sys.bifacial)
-
-    # Monofacial fraction (Excel I25)
-    mf = compute_monofacial_fraction(
-        monthly.front_poa,
-        back_poa,
-        sys.bifacial,
-        c70,
-        monthly.front_mwh,
-        monthly.back_mwh,
-    )
-
-    # Snow loss
-    # The workbook has two snow-loss concepts:
-    #   1) raw 5-SnowCalcs row-29 loss, used by the dust sheet's >=3% snow rule
-    #   2) report-facing snow loss, reduced by monofacial fraction for bifacial systems
-    snow_loss_raw = compute_snow_loss_pct(
-        sys=sys,
-        monthly=monthly,
-        snow_in=snow_in,
-        n_events=n_events,
-        avg_rh=avg_rh,
-        total_poa=total_poa,
-        monofacial_fraction=mf,
-        apply_bifacial_adjustment=False,
-    )
-
-    snow_loss = compute_snow_loss_pct(
-        sys=sys,
-        monthly=monthly,
-        snow_in=snow_in,
-        n_events=n_events,
-        avg_rh=avg_rh,
-        total_poa=total_poa,
-        monofacial_fraction=mf,
-        apply_bifacial_adjustment=True,
-    )
-
-    # Dust components
-    precip_in = _precip_in_inches(dust.precip, dust.precip_units)
-    ramps = _seasonal_ramps(dust)
-
-    baseline = compute_dust_baseline_pct(
-        precip_in=precip_in,
-        ramps=ramps,
-        snow_loss_pct=snow_loss_raw,
-        monofacial_fraction=mf,
+    albedo = compute_albedo(avg_temp, snow_in, monthly.albedo)
+    back_poa = compute_back_poa(
         bifacial=sys.bifacial,
+        front_poa=front_poa,
+        albedo=albedo,
+        user_back_poa=monthly.back_poa,
     )
-
-    month_only = compute_month_only_soil_pct(
-        precip_in=precip_in,
-        ramps=ramps,
-        snow_loss_pct=snow_loss_raw,
-        monofacial_fraction=mf,
-        bifacial=sys.bifacial,
-    )
-
-    # Energy weights for wash optimization (Excel L25 = K25/K37)
-    k = compute_energy_k(
-        front_poa=monthly.front_poa,
+    total_poa = [
+        front_poa[i] + back_poa[i] if sys.bifacial else front_poa[i]
+        for i in range(12)
+    ]
+    monofacial_fraction = compute_monofacial_fraction(
+        front_poa=front_poa,
         back_poa=back_poa,
-        bifacial=sys.bifacial,
         c70=c70,
         front_mwh=monthly.front_mwh,
         back_mwh=monthly.back_mwh,
     )
-    weights = compute_energy_weights(k)
-
-    dust_loss, best1, best2 = optimize_washes(
-        baseline=baseline,
-        month_only=month_only,
-        energy_weights=weights,
-        washes=dust.manual_washes,
+    monthly_energy_proxy = compute_monthly_energy_proxy(
+        front_poa=front_poa,
+        back_poa=back_poa,
+        c70=c70,
+        front_mwh=monthly.front_mwh,
+        back_mwh=monthly.back_mwh,
+    )
+    weights, module_temp, temp_adjustment = compute_temperature_adjusted_energy_weights(
+        avg_temp_c=avg_temp,
+        total_poa=total_poa,
+        monthly_energy_proxy=monthly_energy_proxy,
+        temperature_coefficient=float(sys.temperature_coefficient),
     )
 
-    combined = compute_combined_loss_pct(snow_loss, dust_loss)
+    snow_raw = compute_snow_loss_pct(
+        sys=sys,
+        avg_temp_c=avg_temp,
+        snow_in=snow_in,
+        n_events=n_events,
+        avg_rh=avg_rh,
+        total_poa=total_poa,
+        monofacial_fraction=monofacial_fraction,
+        apply_bifacial_adjustment=False,
+    )
+    snow_report = compute_snow_loss_pct(
+        sys=sys,
+        avg_temp_c=avg_temp,
+        snow_in=snow_in,
+        n_events=n_events,
+        avg_rh=avg_rh,
+        total_poa=total_poa,
+        monofacial_fraction=monofacial_fraction,
+        apply_bifacial_adjustment=True,
+    )
 
-    annual_snow = sum(float(weights[i]) * float(snow_loss[i]) for i in range(12))
-    annual_dust = sum(float(weights[i]) * float(dust_loss[i]) for i in range(12))
-    annual_combined = sum(float(weights[i]) * float(combined[i]) for i in range(12))
+    precip_in = convert_to_inches(dust.precip, dust.precip_units, "precipitation")
+    ramps = _seasonal_ramps(dust)
+    guidance = compute_ramp_rate_guidance(dust.precip, dust.precip_units)
+    baseline, month_type, increment, fixed, start_soil, _ = compute_dust_baseline_pct(
+        precip_in=precip_in,
+        ramps=ramps,
+        snow_loss_raw_pct=snow_raw,
+        snow_loss_report_pct=snow_report,
+        monofacial_fraction=monofacial_fraction,
+        bifacial=sys.bifacial,
+    )
+    residual = compute_manual_wash_month_residual_pct(
+        precip_in=precip_in,
+        ramps=ramps,
+        snow_loss_raw_pct=snow_raw,
+        monofacial_fraction=monofacial_fraction,
+        bifacial=sys.bifacial,
+    )
+    one_wash, two_wash, best_one, best_two = compute_wash_profiles(
+        baseline=baseline,
+        residual=residual,
+        weights=weights,
+        month_type=month_type,
+        increment=increment,
+        fixed=fixed,
+        start_soil=start_soil,
+    )
+
+    washes = int(dust.manual_washes)
+    if washes not in (0, 1, 2):
+        raise ValueError("Manual washes must be 0, 1, or 2.")
+    selected_dust = [baseline, one_wash, two_wash][washes]
+    combined = compute_combined_loss_pct(snow_report, selected_dust)
+
+    annual_snow = _weighted_score(snow_report, weights)
+    annual_dust = _weighted_score(selected_dust, weights)
+    annual_combined = _weighted_score(combined, weights)
+    annual_no_wash = _weighted_score(baseline, weights)
+    annual_one_wash = _weighted_score(one_wash, weights)
+    annual_two_wash = _weighted_score(two_wash, weights)
 
     return ModelOutputs(
-        snow_loss_pct=snow_loss,
-        dust_loss_pct=dust_loss,
+        snow_loss_pct=snow_report,
+        snow_loss_raw_pct=snow_raw,
+        dust_loss_pct=selected_dust,
         combined_loss_pct=combined,
-        best_wash_month_1=best1,
-        best_wash_month_2=best2,
-        annual_snow_loss_pct=float(annual_snow),
-        annual_dust_loss_pct=float(annual_dust),
-        annual_combined_loss_pct=float(annual_combined),
+        dust_no_wash_pct=baseline,
+        dust_one_wash_pct=one_wash,
+        dust_two_wash_pct=two_wash,
+        best_wash_month_1=best_one,
+        best_wash_month_2=best_two,
+        annual_snow_loss_pct=annual_snow,
+        annual_dust_loss_pct=annual_dust,
+        annual_combined_loss_pct=annual_combined,
+        annual_dust_no_wash_pct=annual_no_wash,
+        annual_dust_one_wash_pct=annual_one_wash,
+        annual_dust_two_wash_pct=annual_two_wash,
+        energy_weights=weights,
+        estimated_albedo=albedo,
+        calculated_back_poa=back_poa,
+        monofacial_fraction=monofacial_fraction,
+        monthly_energy_proxy=monthly_energy_proxy,
+        module_temperature_c=module_temp,
+        temperature_adjustment=temp_adjustment,
+        dust_month_type=month_type,
+        dust_increment_pct=increment,
+        dust_fixed_pct=fixed,
+        manual_wash_month_residual_pct=residual,
+        ramp_guidance=guidance,
     )
