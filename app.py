@@ -380,10 +380,31 @@ if run:
         var_name="Wash profile",
         value_name="Loss",
     )
-    dust_profile_chart = alt.Chart(dust_profile_plot).mark_line(point=True).encode(
+
+    monthly_dust_profile = dust_profile_plot[
+        dust_profile_plot["Period"] != "Ann."
+    ]
+    annual_dust_profile = dust_profile_plot[
+        dust_profile_plot["Period"] == "Ann."
+    ]
+
+    dust_profile_lines = alt.Chart(monthly_dust_profile).mark_line(point=True).encode(
         x=alt.X("Period:N", sort=MONTHS + ["Ann."], title=None),
         y=alt.Y("Loss:Q", title="Monthly Loss, %"),
         color=alt.Color("Wash profile:N", title=None),
+    )
+
+    dust_profile_annual_points = alt.Chart(annual_dust_profile).mark_point(
+        filled=True
+    ).encode(
+        x=alt.X("Period:N", sort=MONTHS + ["Ann."], title=None),
+        y=alt.Y("Loss:Q", title="Monthly Loss, %"),
+        color=alt.Color("Wash profile:N", title=None),
+    )
+
+    dust_profile_chart = alt.layer(
+        dust_profile_lines,
+        dust_profile_annual_points,
     ).properties(
         title="Monthly Dust Loss Profiles"
     )
