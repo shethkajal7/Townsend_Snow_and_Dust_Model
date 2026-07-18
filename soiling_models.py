@@ -20,7 +20,7 @@ POA_BOOST_SLOPE = 0.4144
 MODULE_TEMP_INTERCEPT_C = 11.448
 MODULE_TEMP_POA_COEFFICIENT = 2.715
 SNOW_DUST_TRANSITION_PCT = 5.0
-START_MONTH_SNOW_THRESHOLD_PCT = 3.0
+START_MONTH_SNOW_THRESHOLD_PCT = 5.0
 
 
 @dataclass(frozen=True)
@@ -231,20 +231,16 @@ def compute_back_poa(
     albedo: Sequence[float],
     user_back_poa: Optional[Sequence[object]] = None,
 ) -> List[float]:
-    """
-    Replicate SnowInputs E25:E36.
-
-    The attached workbook displays N25:N36 as optional back-POA inputs, but its
-    E25:E36 formulas do not reference those cells. To preserve literal workbook
-    parity, user_back_poa is intentionally retained only for API compatibility
-    and is not used in the calculation.
-    """
+    """Replicate SnowInputs E25:E36, including the optional N25:N36 override."""
     front = _required_numbers(front_poa, "front POA")
     _ensure_len12(albedo, "albedo")
+    overrides = _optional_months(user_back_poa, "back POA")
     if not bifacial:
         return [0.0] * 12
     return [
-        (POA_BOOST_INTERCEPT + POA_BOOST_SLOPE * float(albedo[index])) * front[index]
+        float(overrides[index])
+        if overrides[index] is not None
+        else (POA_BOOST_INTERCEPT + POA_BOOST_SLOPE * float(albedo[index])) * front[index]
         for index in range(12)
     ]
 
@@ -257,12 +253,14 @@ def compute_c70(factors: BifacialRearFactors) -> float:
     )
 
 
-def _monthly_mwh_available(
-    index: int,
+def _complete_mwh_dataset(
     front_mwh: Sequence[Optional[float]],
     back_mwh: Sequence[Optional[float]],
 ) -> bool:
-    return front_mwh[index] is not None and back_mwh[index] is not None
+    """Match SnowInputs F25: use MWh only when all 24 monthly entries are numeric."""
+    return all(value is not None for value in front_mwh) and all(
+        value is not None for value in back_mwh
+    )
 
 
 def compute_monofacial_fraction(
@@ -276,9 +274,10 @@ def compute_monofacial_fraction(
     _ensure_len12(back_poa, "calculated back POA")
     front_energy = _optional_months(front_mwh, "front MWh")
     back_energy = _optional_months(back_mwh, "back MWh")
+    use_mwh = _complete_mwh_dataset(front_energy, back_energy)
     output: List[float] = []
     for index in range(12):
-        if _monthly_mwh_available(index, front_energy, back_energy):
+        if use_mwh:
             numerator = float(front_energy[index])
             denominator = numerator + float(back_energy[index])
         else:
@@ -301,9 +300,10 @@ def compute_monthly_energy_proxy(
     _ensure_len12(back_poa, "calculated back POA")
     front_energy = _optional_months(front_mwh, "front MWh")
     back_energy = _optional_months(back_mwh, "back MWh")
+    use_mwh = _complete_mwh_dataset(front_energy, back_energy)
     output: List[float] = []
     for index in range(12):
-        if _monthly_mwh_available(index, front_energy, back_energy):
+        if use_mwh:
             output.append(float(front_energy[index]) + float(back_energy[index]))
         else:
             output.append(front[index] + float(back_poa[index]) * c70)
