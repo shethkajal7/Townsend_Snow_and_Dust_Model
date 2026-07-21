@@ -60,6 +60,10 @@ class DustInputs:
     ramp_jun_aug: float
     ramp_sep_nov: float
     manual_washes: int
+    agricultural_or_irrigated: bool = False
+    flight_path_within_5km: bool = False
+    bird_dropping_exposure: bool = False
+    city_population_250k: bool = False
 
 
 @dataclass(frozen=True)
@@ -432,23 +436,42 @@ def _excel_rank_desc(values: Sequence[float]) -> List[int]:
     return [1 + sum(1 for other in values if other > value) for value in values]
 
 
-def _suggested_ramp(annual_rain: float, rank: int) -> float:
+def _preliminary_ramp_number(annual_rain: float, rank: int) -> int:
     if annual_rain < 10:
-        return 0.025
+        return 1
     if annual_rain < 15:
-        return 0.05 if rank == 4 else 0.025
+        return 2 if rank == 4 else 1
     if annual_rain < 25:
         if rank == 4:
-            return 0.15
+            return 4
         if rank in (2, 3):
-            return 0.05
-        return 0.025
+            return 2
+        return 1
     if annual_rain < 40:
-        return 0.1 if rank > 2 else 0.05
-    return 0.1
+        return 3 if rank > 2 else 2
+    return 3
 
 
-def compute_ramp_rate_guidance(precip: Sequence[object], units: str) -> RampRateGuidance:
+def _ramp_adder(rank: int, selected_adders: int) -> int:
+    if selected_adders <= 0:
+        return 0
+    if selected_adders == 1:
+        return 1 if rank > 2 else 0
+    if selected_adders == 2:
+        return 2 if rank == 4 else (1 if rank > 1 else 0)
+    if selected_adders == 3:
+        return 3 if rank == 4 else (2 if rank > 1 else 1)
+    return 3 if rank > 2 else 2
+
+
+def compute_ramp_rate_guidance(
+    precip: Sequence[object],
+    units: str,
+    agricultural_or_irrigated: bool = False,
+    flight_path_within_5km: bool = False,
+    bird_dropping_exposure: bool = False,
+    city_population_250k: bool = False,
+) -> RampRateGuidance:
     rain = convert_to_inches(precip, units, "precipitation")
     quarter_totals = [
         sum(rain[2:5]),
@@ -458,7 +481,22 @@ def compute_ramp_rate_guidance(precip: Sequence[object], units: str) -> RampRate
     ]
     ranks = _excel_rank_desc(quarter_totals)
     annual = sum(quarter_totals)
-    suggestions = [_suggested_ramp(annual, rank) for rank in ranks]
+    selected_adders = sum(
+        bool(value)
+        for value in (
+            agricultural_or_irrigated,
+            flight_path_within_5km,
+            bird_dropping_exposure,
+            city_population_250k,
+        )
+    )
+    ramp_rates = [0.025, 0.05, 0.1, 0.15]
+    suggestions = [
+        ramp_rates[
+            min(4, _preliminary_ramp_number(annual, rank) + _ramp_adder(rank, selected_adders)) - 1
+        ]
+        for rank in ranks
+    ]
     return RampRateGuidance(
         spring_ramp=suggestions[0],
         summer_ramp=suggestions[1],
@@ -796,7 +834,14 @@ def run_model(
 
     precip_in = convert_to_inches(dust.precip, dust.precip_units, "precipitation")
     ramps = _seasonal_ramps(dust)
-    guidance = compute_ramp_rate_guidance(dust.precip, dust.precip_units)
+    guidance = compute_ramp_rate_guidance(
+        dust.precip,
+        dust.precip_units,
+        agricultural_or_irrigated=dust.agricultural_or_irrigated,
+        flight_path_within_5km=dust.flight_path_within_5km,
+        bird_dropping_exposure=dust.bird_dropping_exposure,
+        city_population_250k=dust.city_population_250k,
+    )
     baseline, month_type, increment, fixed, start_soil, _ = compute_dust_baseline_pct(
         precip_in=precip_in,
         ramps=ramps,

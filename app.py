@@ -25,6 +25,7 @@ from soiling_models import (
     SnowMonthlyInputs,
     DustInputs,
     BifacialRearFactors,
+    compute_ramp_rate_guidance,
     run_model,
 )
 
@@ -98,8 +99,8 @@ with st.sidebar:
 with st.sidebar:
     st.header("Snow system inputs")
 
-    tilt_deg = st.number_input("Tilt T (deg)", value=20.0, step=0.5)
-    row_length_in = st.number_input("Row length R (in)", value=79.0, step=1.0)
+    tilt_deg = st.number_input("Tilt T (deg)", value=30.0, step=0.5)
+    row_length_in = st.number_input("Row length R (in)", value=158.0, step=1.0)
     drop_height_in = st.number_input("Drop height H (in)", value=24.0, step=1.0)
 
     pileup_angle_deg = st.number_input(
@@ -110,7 +111,7 @@ with st.sidebar:
     )
 
     M = st.radio("M (multiple-string factor)", options=[0.75, 1.0], horizontal=True, index=1)
-    bifacial = st.radio("Bifacial?", options=["NO", "YES"], horizontal=True, index=0) == "YES"
+    bifacial = st.radio("Bifacial?", options=["NO", "YES"], horizontal=True, index=1) == "YES"
     snow_units = st.radio("Snow units", options=["in", "mm"], horizontal=True, index=0)
 
     st.divider()
@@ -140,7 +141,13 @@ with st.sidebar:
 
     precip_units = st.radio("Precipitation units", options=["in", "mm"], horizontal=True, index=0)
 
-    manual_washes = st.radio("Manual washes per year", options=[0, 1, 2], horizontal=True, index=1)
+    manual_washes = st.radio("Manual washes per year", options=[0, 1, 2], horizontal=True, index=0)
+
+    agricultural_or_irrigated = st.checkbox("Agricultural or irrigated surroundings", value=True)
+    flight_path_within_5km = st.checkbox("Commercial airport flight path within 5 km", value=False)
+    bird_dropping_exposure = st.checkbox("Bird-dropping exposure", value=False)
+    city_population_250k = st.checkbox("City population of at least 250,000", value=False)
+    ramp_guidance_placeholder = st.empty()
 
     st.subheader("Ramp rate (%/day) by season")
     st.caption(
@@ -156,16 +163,16 @@ with st.sidebar:
     }
     
     ramp_dec_feb = RAMP_RATE_OPTIONS[
-        st.selectbox("Dec–Feb", options=list(RAMP_RATE_OPTIONS.keys()), index=1)
+        st.selectbox("Dec–Feb", options=list(RAMP_RATE_OPTIONS.keys()), index=0)
     ]
     ramp_mar_may = RAMP_RATE_OPTIONS[
         st.selectbox("Mar–May", options=list(RAMP_RATE_OPTIONS.keys()), index=2)
     ]
     ramp_jun_aug = RAMP_RATE_OPTIONS[
-        st.selectbox("Jun–Aug", options=list(RAMP_RATE_OPTIONS.keys()), index=3)
+        st.selectbox("Jun–Aug", options=list(RAMP_RATE_OPTIONS.keys()), index=1)
     ]
     ramp_sep_nov = RAMP_RATE_OPTIONS[
-        st.selectbox("Sep–Nov", options=list(RAMP_RATE_OPTIONS.keys()), index=2)
+        st.selectbox("Sep–Nov", options=list(RAMP_RATE_OPTIONS.keys()), index=1)
     ]
 
     rear = None
@@ -181,22 +188,22 @@ st.markdown("## Monthly inputs")
 
 # Default values mirror TownsendSnowAndDustModel20260623.xlsx
 df = pd.DataFrame({"Month": MONTHS})
-df["Avg Temp (°C)"] = [7.0, 10.0, 10.0, 14.0, 17.0, 18.0, 20.0, 23.0, 21.0, 17.0, 11.0, 7.0]
-df[f"Snowfall ({snow_units})"] = [float("nan")] * 12
-df["Front POA (kWh/m²/mo)"] = [81.0, 114.0, 161.0, 193.0, 221.0, 220.0, 236.0, 232.0, 208.0, 171.0, 105.0, 80.0]
-df["Precip"] = [3.8, 4.0, 2.8, 1.2, 0.6, 0.05, 0.05, 0.05, 0.05, 0.9, 2.4, 3.5]
+df["Avg Temp (°C)"] = [-4.0, -0.9, 4.0, 8.2, 13.0, 18.9, 20.3, 19.0, 15.3, 8.8, 1.9, -3.8]
+df[f"Snowfall ({snow_units})"] = [7.0, 5.1, 5.4, 1.8, 0.1, 0.0, 0.0, 0.0, 0.0, 1.1, 2.6, 9.2]
+df["Front POA (kWh/m²/mo)"] = [155.0, 159.0, 191.0, 206.0, 213.0, 211.0, 192.0, 192.0, 191.0, 184.0, 155.0, 138.0]
+df["Precip"] = [0.62, 0.55, 0.79, 0.8, 1.14, 0.98, 1.49, 2.06, 1.49, 1.31, 0.8, 0.74]
 
 # Events columns
 if events_have_ge1.startswith("YES"):
-    df['No of days with at least 1" of snow'] = [float("nan")] * 12
+    df['No of days with at least 1" of snow'] = [2.5, 2.1, 1.6, 1.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.5, 0.8, 2.8]
 else:
     df["All snow events (any depth)"] = [float("nan")] * 12
 
 # RH columns
 if rh_mode == "All-day average":
-    df["RH all-day (%)"] = [89.0, 80.0, 71.0, 63.0, 55.0, 52.0, 52.0, 54.0, 56.0, 61.0, 78.0, 86.0]
+    df["RH all-day (%)"] = [64.0, 59.0, 47.0, 39.0, 36.0, 30.0, 44.0, 48.0, 46.0, 48.0, 54.0, 64.0]
 else:
-    df["RH AM (%)"] = [89.0, 80.0, 71.0, 63.0, 55.0, 52.0, 52.0, 54.0, 56.0, 61.0, 78.0, 86.0]
+    df["RH AM (%)"] = [64.0, 59.0, 47.0, 39.0, 36.0, 30.0, 44.0, 48.0, 46.0, 48.0, 54.0, 64.0]
     df["RH PM (%)"] = [None] * 12
 
 # Optional columns
@@ -209,6 +216,21 @@ if have_mwh:
     df["Back MWh (optional)"] = ([None] * 12) if bifacial else ([0.0] * 12)
 
 edited = st.data_editor(df, use_container_width=True, hide_index=True, num_rows="fixed", height=460)
+
+ramp_guidance = compute_ramp_rate_guidance(
+    edited["Precip"].tolist(),
+    precip_units,
+    agricultural_or_irrigated=agricultural_or_irrigated,
+    flight_path_within_5km=flight_path_within_5km,
+    bird_dropping_exposure=bird_dropping_exposure,
+    city_population_250k=city_population_250k,
+)
+ramp_guidance_placeholder.caption(
+    f"Suggested: Dec–Feb {ramp_guidance.winter_ramp:.3f}, "
+    f"Mar–May {ramp_guidance.spring_ramp:.3f}, "
+    f"Jun–Aug {ramp_guidance.summer_ramp:.3f}, "
+    f"Sep–Nov {ramp_guidance.fall_ramp:.3f} %/day"
+)
 
 run = st.button("Run model", type="primary", use_container_width=True)
 
@@ -296,6 +318,10 @@ if run:
         ramp_jun_aug=float(ramp_jun_aug),
         ramp_sep_nov=float(ramp_sep_nov),
         manual_washes=int(manual_washes),
+        agricultural_or_irrigated=bool(agricultural_or_irrigated),
+        flight_path_within_5km=bool(flight_path_within_5km),
+        bird_dropping_exposure=bool(bird_dropping_exposure),
+        city_population_250k=bool(city_population_250k),
     )
 
     try:
@@ -340,7 +366,12 @@ if run:
     month_order = ["Jan","Feb","Mar","Apr","May","Jun",
                 "Jul","Aug","Sep","Oct","Nov","Dec"]
 
-    results_plot = results_df.copy()
+    results_plot = pd.DataFrame({
+        "Month": MONTHS,
+        "Snow loss (%)": out.snow_loss_pct,
+        "Dust loss (%)": out.dust_loss_pct,
+        "Combined soiling loss (%)": out.combined_loss_pct,
+    })
     results_plot["Month"] = pd.Categorical(
         results_plot["Month"],
         categories=month_order,
