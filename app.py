@@ -94,8 +94,6 @@ with st.sidebar:
 
     st.divider()
 
-    st.header("Snow system inputs")
-
 with st.sidebar:
     st.header("Snow system inputs")
 

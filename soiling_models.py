@@ -64,6 +64,7 @@ class DustInputs:
     flight_path_within_5km: bool = False
     bird_dropping_exposure: bool = False
     city_population_250k: bool = False
+    heavy_pollen_mold_mar_oct: bool = False
 
 
 @dataclass(frozen=True)
@@ -186,6 +187,12 @@ def compute_events_gt1in(
         row18 = direct_value if direct_value is not None else (0.0 if all_value is None else 0.49 * all_value)
         output.append(1.0 if row18 < 1.0 else row18)
     return output
+
+
+def compute_dust_snow_event_counts(
+    events_ge_1in: Optional[Sequence[object]],
+) -> List[float]:
+    return _blank_as_zero(events_ge_1in, "snow_events_ge_1in")
 
 
 def compute_avg_rh(
@@ -519,14 +526,17 @@ def compute_dust_baseline_pct(
     ramps: Sequence[float],
     snow_loss_raw_pct: Sequence[float],
     snow_loss_report_pct: Sequence[float],
+    snow_event_counts: Sequence[float],
     monofacial_fraction: Sequence[float],
     bifacial: bool,
+    heavy_pollen_mold_mar_oct: bool,
 ) -> Tuple[List[float], List[str], List[float], List[float], float, int]:
     for values, name in (
         (precip_in, "precipitation in inches"),
         (ramps, "seasonal ramp rates"),
         (snow_loss_raw_pct, "raw snow loss"),
         (snow_loss_report_pct, "reported snow loss"),
+        (snow_event_counts, "snow events >=1 inch"),
         (monofacial_fraction, "monofacial fraction"),
     ):
         _ensure_len12(values, name)
@@ -577,53 +587,62 @@ def compute_dust_baseline_pct(
     baseline = [0.0] * 12
     for step in range(12):
         index = (start_index + step) % 12
-        if float(snow_loss_raw_pct[index]) >= SNOW_DUST_TRANSITION_PCT:
-            soil = 0.0
-        elif month_type[index] == "Additive":
+        if month_type[index] == "Additive":
             soil = increment[index] + baseline[(index - 1) % 12]
         else:
             soil = fixed[index]
-        soil = min(30.0, soil)
+        if float(snow_event_counts[index]) >= 2.0:
+            soil = 0.0
+        elif float(snow_event_counts[index]) >= 1.0:
+            soil = min(1.0, soil)
+        else:
+            soil = min(30.0, soil)
         if bifacial:
             soil *= float(monofacial_fraction[index])
+        if heavy_pollen_mold_mar_oct and 2 < index + 1 < 11:
+            soil += 2.0
         baseline[index] = soil
 
     return baseline, month_type, increment, fixed, start_soil, start_index
 
-
 def compute_manual_wash_month_residual_pct(
     precip_in: Sequence[float],
     ramps: Sequence[float],
-    snow_loss_raw_pct: Sequence[float],
+    snow_event_counts: Sequence[float],
     monofacial_fraction: Sequence[float],
     bifacial: bool,
+    heavy_pollen_mold_mar_oct: bool,
 ) -> List[float]:
     for values, name in (
         (precip_in, "precipitation in inches"),
         (ramps, "seasonal ramp rates"),
-        (snow_loss_raw_pct, "raw snow loss"),
+        (snow_event_counts, "snow events >=1 inch"),
         (monofacial_fraction, "monofacial fraction"),
     ):
         _ensure_len12(values, name)
 
     residual: List[float] = []
+    wash_ramp = float(ramps[0])
     for index in range(12):
         precip = float(precip_in[index])
-        if float(snow_loss_raw_pct[index]) >= SNOW_DUST_TRANSITION_PCT:
-            value = 0.0
-        elif precip >= 4.0:
+        if precip >= 4.0:
             value = 0.0
         elif precip >= 2.0:
             value = 0.5
         elif precip >= 0.5:
-            value = (DAYS_IN_MONTH[index] // 2) * float(ramps[index]) / 2.0
+            value = (DAYS_IN_MONTH[index] // 2) * wash_ramp / 2.0
         else:
-            value = DAYS_IN_MONTH[index] * float(ramps[index]) / 2.0
+            value = DAYS_IN_MONTH[index] * wash_ramp / 2.0
+        if float(snow_event_counts[index]) >= 2.0:
+            value = 0.0
+        elif float(snow_event_counts[index]) >= 1.0:
+            value = min(1.0, value)
         if bifacial:
             value *= float(monofacial_fraction[index])
+        if heavy_pollen_mold_mar_oct and 2 < index + 1 < 11:
+            value += 1.0
         residual.append(value)
     return residual
-
 
 def _weighted_score(profile: Sequence[float], weights: Sequence[float]) -> float:
     return sum(float(profile[i]) * float(weights[i]) for i in range(12))
@@ -750,15 +769,9 @@ def compute_combined_loss_pct(
     for snow, dust in zip(snow_loss_pct, dust_loss_pct):
         snow_fraction = float(snow) / 100.0
         dust_fraction = float(dust) / 100.0
-        if snow_fraction >= 0.05:
-            combined = snow_fraction
-        elif snow_fraction == 0:
-            combined = dust_fraction
-        else:
-            combined = snow_fraction + dust_fraction - snow_fraction * dust_fraction
+        combined = snow_fraction + dust_fraction - snow_fraction * dust_fraction
         output.append(combined * 100.0)
     return output
-
 
 def run_model(
     sys: SnowSystemInputs,
@@ -770,6 +783,7 @@ def run_model(
     front_poa = _required_numbers(monthly.front_poa, "front POA")
     snow_in = convert_to_inches(monthly.snow_depth, monthly.snow_units, "snowfall")
     n_events = compute_events_gt1in(monthly.snow_events_ge_1in, monthly.snow_events_any)
+    dust_snow_events = compute_dust_snow_event_counts(monthly.snow_events_ge_1in)
     avg_rh = compute_avg_rh(monthly.rh_all_day, monthly.rh_am, monthly.rh_pm)
 
     if sys.bifacial:
@@ -847,15 +861,18 @@ def run_model(
         ramps=ramps,
         snow_loss_raw_pct=snow_raw,
         snow_loss_report_pct=snow_report,
+        snow_event_counts=dust_snow_events,
         monofacial_fraction=monofacial_fraction,
         bifacial=sys.bifacial,
+        heavy_pollen_mold_mar_oct=dust.heavy_pollen_mold_mar_oct,
     )
     residual = compute_manual_wash_month_residual_pct(
         precip_in=precip_in,
         ramps=ramps,
-        snow_loss_raw_pct=snow_raw,
+        snow_event_counts=dust_snow_events,
         monofacial_fraction=monofacial_fraction,
         bifacial=sys.bifacial,
+        heavy_pollen_mold_mar_oct=dust.heavy_pollen_mold_mar_oct,
     )
     one_wash, two_wash, best_one, best_two = compute_wash_profiles(
         baseline=baseline,
