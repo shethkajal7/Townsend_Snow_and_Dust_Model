@@ -69,7 +69,7 @@ A link to a similar-looking and -functioning webpage is provided below. This opt
 
 Lastly, this webpage introduces a companion dust loss model, also developed by Townsend. It relies mostly on a series of monthly precipitation inputs. It allows the user to specify whether up to two manual washes per year are to be done (and if so, optimizes when these cleanings should be done). It also allows the user to specify a seasonally-appropriate daily dust build-up rate, with a nominally safe default ramp-up of 0.1%/day. The theory behind the Townsend dust model is available via a pdf link below, as is the theory associated with the snow model.
 
-While the snow and dust models can be run here separately, the main use of either is to provide monthly soiling loss inputs for PVsyst or similar simulation programs. Therefore, it is anticipated that users will benefit from running both models in order to obtain a complete year of monthly inputs for PVsyst. For months in which there may be non-zero losses calculated for both snow and dust, the overlap logic for this webpage’s combined loss tables and graphic assumes a snow loss of 5% or more in any month will render that month’s dust loss to be zero. For transitional months with snow loss less than 5%, the dual losses are combined as a simple overlap equation: Loss = A+B-(A*B), where A and B represent the monthly fractional snow and dust loss.
+While the snow and dust models can be run here separately, the main use of either is to provide monthly soiling loss inputs for PVsyst or similar simulation programs. Therefore, it is anticipated that users will benefit from running both models in order to obtain a complete year of monthly inputs for PVsyst. For months with at least one snow event of 1 inch (25 mm) or more, the otherwise calculated dust loss is capped at 1%; for months with two or more such snow events, the dust loss is capped at 0%. For months in which non-zero snow and dust losses remain, the dual losses are combined as a simple overlap equation: Loss = A+B-(A*B), where A and B represent the monthly fractional snow and dust loss.
 """)
 
 with st.sidebar:
@@ -172,6 +172,13 @@ with st.sidebar:
     ramp_sep_nov = RAMP_RATE_OPTIONS[
         st.selectbox("Sep–Nov", options=list(RAMP_RATE_OPTIONS.keys()), index=1)
     ]
+
+    heavy_pollen_mold_mar_oct = st.radio(
+        "High pollen/mold in Mar–Oct?",
+        options=["NO", "YES"],
+        horizontal=True,
+        index=0,
+    ) == "YES"
 
     rear = None
     if bifacial:
@@ -320,6 +327,7 @@ if run:
         flight_path_within_5km=bool(flight_path_within_5km),
         bird_dropping_exposure=bool(bird_dropping_exposure),
         city_population_250k=bool(city_population_250k),
+        heavy_pollen_mold_mar_oct=bool(heavy_pollen_mold_mar_oct),
     )
 
     try:
